@@ -183,7 +183,7 @@ static int bio_copy_user_iov(struct request *rq, struct rq_map_data *map_data,
 
 			i++;
 		} else {
-			page = alloc_page(rq->q->bounce_gfp | gfp_mask);
+			page = alloc_page(rq->q->bounce_gfp | __GFP_ZERO | gfp_mask);
 			if (!page) {
 				ret = -ENOMEM;
 				goto cleanup;
