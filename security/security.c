@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Security plug functions
@@ -1081,6 +1084,9 @@ int security_path_rmdir(const struct path *dir, struct dentry *dentry)
 		return 0;
 	return call_int_hook(path_rmdir, 0, dir, dentry);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(security_path_rmdir);
+#endif /* MY_ABC_HERE */
 
 int security_path_unlink(const struct path *dir, struct dentry *dentry)
 {
@@ -1097,6 +1103,9 @@ int security_path_symlink(const struct path *dir, struct dentry *dentry,
 		return 0;
 	return call_int_hook(path_symlink, 0, dir, dentry, old_name);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(security_path_symlink);
+#endif /* MY_ABC_HERE */
 
 int security_path_link(struct dentry *old_dentry, const struct path *new_dir,
 		       struct dentry *new_dentry)
@@ -1105,6 +1114,9 @@ int security_path_link(struct dentry *old_dentry, const struct path *new_dir,
 		return 0;
 	return call_int_hook(path_link, 0, old_dentry, new_dir, new_dentry);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(security_path_link);
+#endif /* MY_ABC_HERE */
 
 int security_path_rename(const struct path *old_dir, struct dentry *old_dentry,
 			 const struct path *new_dir, struct dentry *new_dentry,
@@ -1132,6 +1144,9 @@ int security_path_truncate(const struct path *path)
 		return 0;
 	return call_int_hook(path_truncate, 0, path);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(security_path_truncate);
+#endif /* MY_ABC_HERE */
 
 int security_path_chmod(const struct path *path, umode_t mode)
 {
@@ -1139,6 +1154,9 @@ int security_path_chmod(const struct path *path, umode_t mode)
 		return 0;
 	return call_int_hook(path_chmod, 0, path, mode);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(security_path_chmod);
+#endif /* MY_ABC_HERE */
 
 int security_path_chown(const struct path *path, kuid_t uid, kgid_t gid)
 {
@@ -1146,6 +1164,9 @@ int security_path_chown(const struct path *path, kuid_t uid, kgid_t gid)
 		return 0;
 	return call_int_hook(path_chown, 0, path, uid, gid);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(security_path_chown);
+#endif /* MY_ABC_HERE */
 
 int security_path_chroot(const struct path *path)
 {
@@ -1246,6 +1267,9 @@ int security_inode_permission(struct inode *inode, int mask)
 		return 0;
 	return call_int_hook(inode_permission, 0, inode, mask);
 }
+#if defined(MY_ABC_HERE) || defined(MY_ABC_HERE)
+EXPORT_SYMBOL(security_inode_permission);
+#endif /* MY_ABC_HERE || MY_ABC_HERE */
 
 int security_inode_setattr(struct dentry *dentry, struct iattr *attr)
 {
@@ -1438,6 +1462,9 @@ int security_file_permission(struct file *file, int mask)
 
 	return fsnotify_perm(file, mask);
 }
+#if defined(MY_ABC_HERE) || defined(MY_ABC_HERE)
+EXPORT_SYMBOL(security_file_permission);
+#endif /* MY_ABC_HERE || MY_ABC_HERE */
 
 int security_file_alloc(struct file *file)
 {
