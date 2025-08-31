@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_NAMEI_H
 #define _LINUX_NAMEI_H
@@ -49,8 +52,18 @@ enum {LAST_NORM, LAST_ROOT, LAST_DOT, LAST_DOTDOT};
 #define LOOKUP_CACHED		0x200000 /* Only do cached lookup */
 /* LOOKUP_* flags which do scope-related checks based on the dirfd. */
 #define LOOKUP_IS_SCOPED (LOOKUP_BENEATH | LOOKUP_IN_ROOT)
+#ifdef MY_ABC_HERE
+/* this namei has done to the last component */
+#define LOOKUP_TO_LASTCOMPONENT 0x200000
+#define LOOKUP_MOUNTED		0x400000
+#define LOOKUP_CASELESS_COMPARE 0x800000
+#endif /* MY_ABC_HERE */
 
 extern int path_pts(struct path *path);
+
+#ifdef MY_ABC_HERE
+extern int syno_user_path_at(int, const char __user *, unsigned, struct path *, char **, int *);
+#endif /* MY_ABC_HERE */
 
 extern int user_path_at_empty(int, const char __user *, unsigned, struct path *, int *empty);
 
@@ -70,6 +83,9 @@ extern struct dentry *kern_path_locked(const char *, struct path *);
 extern struct dentry *try_lookup_one_len(const char *, struct dentry *, int);
 extern struct dentry *lookup_one_len(const char *, struct dentry *, int);
 extern struct dentry *lookup_one_len_unlocked(const char *, struct dentry *, int);
+#ifdef MY_ABC_HERE
+extern struct dentry *lookup_one_len_caseless(const char *, struct dentry *, int, unsigned int);
+#endif /* MY_ABC_HERE */
 extern struct dentry *lookup_positive_unlocked(const char *, struct dentry *, int);
 
 extern int follow_down_one(struct path *);

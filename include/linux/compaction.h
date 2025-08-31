@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_COMPACTION_H
 #define _LINUX_COMPACTION_H
@@ -87,6 +90,9 @@ extern int sysctl_compaction_handler(struct ctl_table *table, int write,
 			void *buffer, size_t *length, loff_t *ppos);
 extern int compaction_proactiveness_sysctl_handler(struct ctl_table *table,
 		int write, void *buffer, size_t *length, loff_t *ppos);
+#ifdef MY_ABC_HERE
+extern void compact_nodes(void);
+#endif /* MY_ABC_HERE */
 extern int sysctl_extfrag_threshold;
 extern int sysctl_compact_unevictable_allowed;
 

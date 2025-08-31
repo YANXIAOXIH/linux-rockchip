@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Runtime locking correctness validator
@@ -252,6 +255,10 @@ static inline int lockdep_match_key(struct lockdep_map *lock,
 	return lock->key == key;
 }
 
+#ifdef MY_ABC_HERE
+struct lock_class *lockdep_hlock_class(struct held_lock *hlock);
+#endif /* MY_ABC_HERE */
+
 /*
  * Acquire a lock.
  *
@@ -388,6 +395,9 @@ static inline void lockdep_unregister_key(struct lock_class_key *key)
 
 #define lockdep_depth(tsk)	(0)
 
+#ifdef MY_ABC_HERE
+#define lockdep_is_held(lock)			(1)
+#endif /* MY_ABC_HERE */
 #define lockdep_is_held_type(l, r)		(1)
 
 #define lockdep_assert_held(l)			do { (void)(l); } while (0)

@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  *	pci.h
@@ -39,6 +42,10 @@
 #include <linux/io.h>
 #include <linux/resource_ext.h>
 #include <uapi/linux/pci.h>
+
+#ifdef MY_DEF_HERE
+#include <linux/synolib.h>
+#endif /* MY_DEF_HERE */
 
 #include <linux/pci_ids.h>
 #include <linux/android_kabi.h>
@@ -506,6 +513,10 @@ struct pci_dev {
 	char		*driver_override; /* Driver name to force a match */
 
 	unsigned long	priv_flags;	/* Private flags for the PCI driver */
+#ifdef MY_DEF_HERE
+	struct list_head syno_device_list;
+	unsigned int	syno_eunit_layer;
+#endif /* MY_DEF_HERE */
 
 	ANDROID_KABI_RESERVE(1);
 	ANDROID_KABI_RESERVE(2);

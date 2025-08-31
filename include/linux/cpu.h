@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * include/linux/cpu.h - generic cpu definition
@@ -245,6 +248,9 @@ static inline int cpuhp_smt_disable(enum cpuhp_smt_control ctrlval) { return 0; 
 #endif
 
 extern bool cpu_mitigations_off(void);
+#ifdef MY_DEF_HERE
+extern void cpu_mitigations_auto_set(void);
+#endif /* MY_DEF_HERE */
 extern bool cpu_mitigations_auto_nosmt(void);
 
 #define IDLE_START 1

@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/net/sunrpc/svc.c
@@ -44,7 +47,11 @@ static void svc_unregister(const struct svc_serv *serv, struct net *net);
  * Setup once during sunrpc initialisation.
  */
 struct svc_pool_map svc_pool_map = {
+#ifdef MY_DEF_HERE
+	.mode = SVC_POOL_PERNODE
+#else /* MY_DEF_HERE */
 	.mode = SVC_POOL_DEFAULT
+#endif /* MY_DEF_HERE */
 };
 EXPORT_SYMBOL_GPL(svc_pool_map);
 
@@ -610,6 +617,9 @@ svc_rqst_alloc(struct svc_serv *serv, struct svc_pool *pool, int node)
 		return rqstp;
 
 	__set_bit(RQ_BUSY, &rqstp->rq_flags);
+#ifdef MY_DEF_HERE
+	atomic_long_inc(&pool->sp_stats.loading);
+#endif /* MY_DEF_HERE */
 	spin_lock_init(&rqstp->rq_lock);
 	rqstp->rq_server = serv;
 	rqstp->rq_pool = pool;
@@ -850,6 +860,10 @@ svc_rqst_free(struct svc_rqst *rqstp)
 	kfree(rqstp->rq_argp);
 	kfree(rqstp->rq_auth_data);
 	kfree_rcu(rqstp, rq_rcu_head);
+#ifdef MY_DEF_HERE
+	if (rqstp->rq_pool)
+		atomic_long_dec(&rqstp->rq_pool->sp_stats.loading);
+#endif /* MY_DEF_HERE */
 }
 EXPORT_SYMBOL_GPL(svc_rqst_free);
 

@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
@@ -5110,6 +5113,10 @@ static inline bool netif_reduces_vlan_mtu(struct net_device *dev)
 }
 
 extern struct pernet_operations __net_initdata loopback_net_ops;
+
+#ifdef MY_ABC_HERE
+extern int syno_get_dev_vendor_mac(const char *szDev, char *szMac, int bufSize);
+#endif /* MY_ABC_HERE */
 
 /* Logging, debugging and troubleshooting/diagnostic helpers. */
 
