@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2017, 2019-2021 Linaro Limited
@@ -13,6 +16,16 @@
 #include <linux/uio.h>
 #include "tee_private.h"
 
+#if defined(MY_ABC_HERE)
+/* extra references appended to shm object for registered shared memory */
+struct tee_shm_dmabuf_ref {
+	struct tee_shm shm;
+	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attach;
+	struct sg_table *sgt;
+};
+
+#endif /* MY_ABC_HERE */
 static void release_registered_pages(struct tee_shm *shm)
 {
 	if (shm->pages) {
@@ -31,7 +44,19 @@ static void release_registered_pages(struct tee_shm *shm)
 
 static void tee_shm_release(struct tee_device *teedev, struct tee_shm *shm)
 {
+#if defined(MY_ABC_HERE)
+	if (shm->flags & TEE_SHM_EXT_DMA_BUF) {
+		struct tee_shm_dmabuf_ref *ref;
+
+		ref = container_of(shm, struct tee_shm_dmabuf_ref, shm);
+		dma_buf_unmap_attachment(ref->attach, ref->sgt,
+						DMA_BIDIRECTIONAL);
+		dma_buf_detach(ref->dmabuf, ref->attach);
+		dma_buf_put(ref->dmabuf);
+	} else if (shm->flags & TEE_SHM_POOL) {
+#else /* MY_ABC_HERE */
 	if (shm->flags & TEE_SHM_POOL) {
+#endif /* MY_ABC_HERE */
 		struct tee_shm_pool_mgr *poolm;
 
 		if (shm->flags & TEE_SHM_DMA_BUF)
@@ -337,6 +362,100 @@ int tee_shm_va2pa(struct tee_shm *shm, void *va, phys_addr_t *pa)
 }
 EXPORT_SYMBOL_GPL(tee_shm_va2pa);
 
+#if defined(MY_ABC_HERE)
+struct tee_shm *tee_shm_register_fd(struct tee_context *ctx, int fd)
+{
+	struct tee_shm_dmabuf_ref *ref;
+	void *rc;
+	DEFINE_DMA_BUF_EXPORT_INFO(exp_info);
+
+	if (!tee_device_get(ctx->teedev))
+		return ERR_PTR(-EINVAL);
+
+	teedev_ctx_get(ctx);
+
+	ref = kzalloc(sizeof(*ref), GFP_KERNEL);
+	if (!ref) {
+		rc = ERR_PTR(-ENOMEM);
+		goto err;
+	}
+
+	ref->shm.ctx = ctx;
+	ref->shm.id = -1;
+
+	ref->dmabuf = dma_buf_get(fd);
+	if (!ref->dmabuf) {
+		rc = ERR_PTR(-EINVAL);
+		goto err;
+	}
+
+	ref->attach = dma_buf_attach(ref->dmabuf, &ref->shm.ctx->teedev->dev);
+	if (IS_ERR_OR_NULL(ref->attach)) {
+		rc = ERR_PTR(-EINVAL);
+		goto err;
+	}
+
+	ref->sgt = dma_buf_map_attachment(ref->attach, DMA_BIDIRECTIONAL);
+	if (IS_ERR_OR_NULL(ref->sgt)) {
+		rc = ERR_PTR(-EINVAL);
+		goto err;
+	}
+
+	if (sg_nents(ref->sgt->sgl) != 1) {
+		rc = ERR_PTR(-EINVAL);
+		goto err;
+	}
+
+	ref->shm.paddr = sg_dma_address(ref->sgt->sgl);
+	ref->shm.size = sg_dma_len(ref->sgt->sgl);
+	ref->shm.flags = TEE_SHM_DMA_BUF | TEE_SHM_EXT_DMA_BUF;
+
+	mutex_lock(&ref->shm.ctx->teedev->mutex);
+	ref->shm.id = idr_alloc(&ref->shm.ctx->teedev->idr, &ref->shm,
+				1, 0, GFP_KERNEL);
+	mutex_unlock(&ref->shm.ctx->teedev->mutex);
+	if (ref->shm.id < 0) {
+		rc = ERR_PTR(ref->shm.id);
+		goto err;
+	}
+
+	/* export a dmabuf to later get a userland ref */
+	exp_info.ops = &tee_shm_dma_buf_ops;
+	exp_info.size = ref->shm.size;
+	exp_info.flags = O_RDWR;
+	exp_info.priv = &ref->shm;
+
+	ref->shm.dmabuf = dma_buf_export(&exp_info);
+	if (IS_ERR(ref->shm.dmabuf)) {
+		rc = ERR_PTR(-EINVAL);
+		goto err;
+	}
+
+	return &ref->shm;
+
+err:
+	if (ref) {
+		if (ref->shm.id >= 0) {
+			mutex_lock(&ctx->teedev->mutex);
+			idr_remove(&ctx->teedev->idr, ref->shm.id);
+			mutex_unlock(&ctx->teedev->mutex);
+		}
+		if (ref->sgt)
+			dma_buf_unmap_attachment(ref->attach, ref->sgt,
+						 DMA_BIDIRECTIONAL);
+		if (ref->attach)
+			dma_buf_detach(ref->dmabuf, ref->attach);
+		if (ref->dmabuf)
+			dma_buf_put(ref->dmabuf);
+	}
+	kfree(ref);
+	teedev_ctx_put(ctx);
+	tee_device_put(ctx->teedev);
+	return rc;
+}
+EXPORT_SYMBOL_GPL(tee_shm_register_fd);
+
+#endif /* MY_ABC_HERE */
 /**
  * tee_shm_pa2va() - Get virtual address of a physical address
  * @shm:	Shared memory handle
@@ -392,8 +511,10 @@ EXPORT_SYMBOL_GPL(tee_shm_get_va);
  */
 int tee_shm_get_pa(struct tee_shm *shm, size_t offs, phys_addr_t *pa)
 {
+#if defined(MY_ABC_HERE)
 	if (offs >= shm->size)
 		return -EINVAL;
+#endif /* MY_ABC_HERE */
 	if (pa)
 		*pa = shm->paddr + offs;
 	return 0;

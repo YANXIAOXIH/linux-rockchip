@@ -12,3 +12,7 @@ obj-$(CONFIG_R8169) += r8169.o
 
 obj-${CONFIG_R8125} += r8125/
 obj-${CONFIG_REALTEK_PGTOOL} += realtek_pgtool/
+
+ifeq ($(CONFIG_SYNO_LSP_RTD1619B), y)
+obj-$(CONFIG_R8169SOC) += r8169soc.o
+endif # CONFIG_SYNO_LSP_RTD1619B

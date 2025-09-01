@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /*
  * AMD 10Gb Ethernet driver
  *
@@ -288,7 +291,7 @@
 
 /* Auto-negotiation */
 #define XGBE_AN_MS_TIMEOUT		500
-#define XGBE_LINK_TIMEOUT		5
+#define XGBE_LINK_TIMEOUT		1
 #define XGBE_KR_TRAINING_WAIT_ITER	50
 
 #define XGBE_SGMII_AN_LINK_STATUS	BIT(1)
@@ -889,12 +892,24 @@ struct xgbe_phy_impl_if {
 	/* Pre/Post KR training enablement support */
 	void (*kr_training_pre)(struct xgbe_prv_data *);
 	void (*kr_training_post)(struct xgbe_prv_data *);
+	int (*kr_training_cdroff)(struct xgbe_prv_data *pdata);
+	void (*reset_cdr_delay)(struct xgbe_prv_data *pdata);
+	void (*update_cdr_delay)(struct xgbe_prv_data *pdata);
 
 	/* SFP module related info */
 	int (*module_info)(struct xgbe_prv_data *pdata,
 			   struct ethtool_modinfo *modinfo);
 	int (*module_eeprom)(struct xgbe_prv_data *pdata,
 			     struct ethtool_eeprom *eeprom, u8 *data);
+
+#if defined(MY_DEF_HERE)
+	/* WOL setting Enable */
+	void (*wol_enable)(struct xgbe_prv_data *);
+	void (*force_1g)(struct xgbe_prv_data *);
+	void (*resume_autoneg)(struct xgbe_prv_data *);
+	void (*phy_led_test_mode)(struct xgbe_prv_data *, unsigned int);
+#endif /* MY_DEF_HERE */
+
 };
 
 struct xgbe_phy_if {
@@ -1013,6 +1028,7 @@ struct xgbe_version_data {
 	unsigned int tx_desc_prefetch;
 	unsigned int rx_desc_prefetch;
 	unsigned int an_cdr_workaround;
+	unsigned int an_kr_workaround;
 };
 
 struct xgbe_prv_data {
@@ -1231,6 +1247,7 @@ struct xgbe_prv_data {
 	int mdio_mmd;
 	unsigned long link_check;
 	struct completion mdio_complete;
+	unsigned int ext_fixed_phy;
 
 	unsigned int kr_redrv;
 
@@ -1256,6 +1273,10 @@ struct xgbe_prv_data {
 	unsigned long an_start;
 	unsigned long kr_start_time;
 	enum xgbe_an_mode an_mode;
+	unsigned int kr_done;
+	unsigned long kr_start_time;
+	unsigned long rrc_start_time;
+	unsigned int cdr_delay_required;
 
 	/* I2C support */
 	struct xgbe_i2c i2c;
@@ -1284,6 +1305,10 @@ struct xgbe_prv_data {
 
 	bool debugfs_an_cdr_workaround;
 	bool debugfs_an_cdr_track_early;
+
+#if defined(MY_DEF_HERE)
+	int wol_flag;
+#endif /* MY_DEF_HERE */
 };
 
 /* Function prototypes*/

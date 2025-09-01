@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * core.c - DesignWare USB3 DRD Controller Core file
@@ -32,6 +35,12 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+#include <linux/suspend.h>
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 #include "core.h"
 #include "gadget.h"
 #include "io.h"
@@ -113,6 +122,12 @@ void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode)
 
 	dwc->current_dr_role = mode;
 }
+
+#if defined(MY_ABC_HERE)
+int dwc3_core_soft_reset(struct dwc3 *dwc);
+#else /* MY_ABC_HERE */
+static int dwc3_core_soft_reset(struct dwc3 *dwc);
+#endif /* MY_ABC_HERE */
 
 static void __dwc3_set_mode(struct work_struct *work)
 {
@@ -299,7 +314,15 @@ u32 dwc3_core_fifo_space(struct dwc3_ep *dep, u8 type)
  * dwc3_core_soft_reset - Issues core soft reset and PHY reset
  * @dwc: pointer to our context structure
  */
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
 int dwc3_core_soft_reset(struct dwc3 *dwc)
+#else
+static int dwc3_core_soft_reset(struct dwc3 *dwc)
+#endif // USB_PATCH_BY_RTK
+#else /* MY_ABC_HERE */
+static int dwc3_core_soft_reset(struct dwc3 *dwc)
+#endif /* MY_ABC_HERE */
 {
 	u32		reg;
 	int		retries = 1000;
@@ -648,6 +671,23 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	if (!DWC3_VER_IS_WITHIN(DWC3, ANY, 194A))
 		reg |= DWC3_GUSB3PIPECTL_SUSPHY;
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	if (dwc->revision > DWC3_REVISION_194A) {
+		unsigned int hw_mode;
+
+		hw_mode = DWC3_GHWPARAMS0_MODE(dwc->hwparams.hwparams0);
+
+		/*
+		 * For DRD controllers, GUSB3PIPECTL.SUSPENDENABLE must be cleared after
+		 * power-on reset, and it can be set after core initialization, which is
+		 * after device soft-reset during initialization.
+		 */
+		if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD)
+			reg &= ~DWC3_GUSB3PIPECTL_SUSPHY;
+	}
+#endif /* CONFIG_USB_PATCH_ON_RTK */
+#else /* MY_ABC_HERE */
 	/*
 	 * For DRD controllers, GUSB3PIPECTL.SUSPENDENABLE must be cleared after
 	 * power-on reset, and it can be set after core initialization, which is
@@ -655,6 +695,7 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	 */
 	if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD)
 		reg &= ~DWC3_GUSB3PIPECTL_SUSPHY;
+#endif /* MY_ABC_HERE */
 
 	if (dwc->u2ss_inp3_quirk)
 		reg |= DWC3_GUSB3PIPECTL_U2SSINP3OK;
@@ -738,6 +779,23 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	if (!DWC3_VER_IS_WITHIN(DWC3, ANY, 194A))
 		reg |= DWC3_GUSB2PHYCFG_SUSPHY;
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	if (dwc->revision > DWC3_REVISION_194A) {
+		unsigned int hw_mode;
+
+		hw_mode = DWC3_GHWPARAMS0_MODE(dwc->hwparams.hwparams0);
+
+		/*
+		 * For DRD controllers, GUSB2PHYCFG.SUSPHY must be cleared after
+		 * power-on reset, and it can be set after core initialization, which is
+		 * after device soft-reset during initialization.
+		 */
+		if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD)
+			reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
+	}
+#endif /* CONFIG_USB_PATCH_ON_RTK */
+#else /* MY_ABC_HERE */
 	/*
 	 * For DRD controllers, GUSB2PHYCFG.SUSPHY must be cleared after
 	 * power-on reset, and it can be set after core initialization, which is
@@ -745,6 +803,7 @@ static int dwc3_phy_setup(struct dwc3 *dwc)
 	 */
 	if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD)
 		reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
+#endif /* MY_ABC_HERE */
 
 	if (dwc->dis_u2_susphy_quirk)
 		reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
@@ -1024,10 +1083,21 @@ static int dwc3_core_init(struct dwc3 *dwc)
 		phy_exit(dwc->usb2_generic_phy);
 		goto err0a;
 	}
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	reg = dwc3_readl(dwc->regs, DWC3_GCTL);
+	dwc3_writel(dwc->regs, DWC3_GCTL, reg | DWC3_GCTL_DSBLCLKGTNG);
+#endif // CONFIG_USB_PATCH_ON_RTK
 
+#endif /* MY_ABC_HERE */
 	ret = dwc3_core_soft_reset(dwc);
 	if (ret)
 		goto err1;
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
+#endif // CONFIG_USB_PATCH_ON_RTK
+#endif /* MY_ABC_HERE */
 
 	if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD &&
 	    !DWC3_VER_IS_WITHIN(DWC3, ANY, 194A)) {
@@ -1043,6 +1113,30 @@ static int dwc3_core_init(struct dwc3 *dwc)
 			dwc3_writel(dwc->regs, DWC3_GUSB2PHYCFG(0), reg);
 		}
 	}
+
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	if (dwc->revision > DWC3_REVISION_194A) {
+		unsigned int hw_mode;
+
+		hw_mode = DWC3_GHWPARAMS0_MODE(dwc->hwparams.hwparams0);
+
+		if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD &&
+			    !dwc->dis_u3_susphy_quirk) {
+			reg = dwc3_readl(dwc->regs, DWC3_GUSB3PIPECTL(0));
+			reg |= DWC3_GUSB3PIPECTL_SUSPHY;
+			dwc3_writel(dwc->regs, DWC3_GUSB3PIPECTL(0), reg);
+		}
+
+		if (hw_mode == DWC3_GHWPARAMS0_MODE_DRD &&
+			    !dwc->dis_u2_susphy_quirk) {
+			reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
+			reg |= DWC3_GUSB2PHYCFG_SUSPHY;
+			dwc3_writel(dwc->regs, DWC3_GUSB2PHYCFG(0), reg);
+		}
+	}
+#endif /* CONFIG_USB_PATCH_ON_RTK */
+#endif /* MY_ABC_HERE */
 
 	dwc3_core_setup_global_control(dwc);
 	dwc3_core_num_eps(dwc);
@@ -1072,6 +1166,26 @@ static int dwc3_core_init(struct dwc3 *dwc)
 		goto err4;
 	}
 
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+	/* base on commit id 00af62330c39a6c88615a08e7f9d068944e4af69 */
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
+		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_DEVICE);
+		break;
+	case USB_DR_MODE_HOST:
+		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_HOST);
+		break;
+	case USB_DR_MODE_OTG:
+		dwc3_set_prtcap(dwc, DWC3_GCTL_PRTCAP_OTG);
+		break;
+	default:
+		dev_warn(dwc->dev, "Unsupported mode %d\n", dwc->dr_mode);
+		break;
+	}
+#endif // USB_PATCH_BY_RTK
+
+#endif /* MY_ABC_HERE */
 	/*
 	 * ENDXFER polling is available on version 3.10a and later of
 	 * the DWC_usb3 controller. It is NOT available in the
@@ -1120,6 +1234,15 @@ static int dwc3_core_init(struct dwc3 *dwc)
 
 		dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
 	}
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+	if (dwc->dev_force_20_clk_for_30_clk)
+		dwc3_writel(dwc->regs, DWC3_GUCTL1,
+			    dwc3_readl(dwc->regs, DWC3_GUCTL1) |
+			      DWC3_GUCTL1_DEV_FORCE_20_CLK_FOR_30_CLK);
+#endif // USB_PATCH_BY_RTK
+
+#endif /* MY_ABC_HERE */
 
 	/*
 	 * Must config both number of packets and max burst settings to enable
@@ -1425,6 +1548,12 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				"snps,dis-u2-freeclk-exists-quirk");
 	dwc->dis_del_phy_power_chg_quirk = device_property_read_bool(dev,
 				"snps,dis-del-phy-power-chg-quirk");
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+	dwc->dev_force_20_clk_for_30_clk = device_property_read_bool(dev,
+				"snps,dev_force_20_clk_for_30_clk");
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
 	dwc->dis_tx_ipgap_linecheck_quirk = device_property_read_bool(dev,
 				"snps,dis-tx-ipgap-linecheck-quirk");
 	dwc->parkmode_disable_ss_quirk = device_property_read_bool(dev,
@@ -1612,6 +1741,23 @@ static int dwc3_probe(struct platform_device *pdev)
 	dwc_res = *res;
 	dwc_res.start += DWC3_GLOBALS_REGS_START;
 
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+	/* For some dwc3 controller, the dwc3 global register start address is
+	 * not at DWC3_GLOBALS_REGS_START (0xc100).
+	 */
+	device_property_read_u32(dev, "snps,fixed_dwc3_globals_regs_start",
+				 &dwc->fixed_dwc3_globals_regs_start);
+	if (dwc->fixed_dwc3_globals_regs_start) {
+		dwc_res.start -= DWC3_GLOBALS_REGS_START;
+		dwc_res.start += dwc->fixed_dwc3_globals_regs_start;
+		dev_info(dev,
+		    "fixed dwc3 globals register start address from 0x%x to end 0x%x\n",
+		    (int)dwc_res.start, (int)dwc_res.end);
+	}
+#endif
+
+#endif /* MY_ABC_HERE */
 	regs = devm_ioremap_resource(dev, &dwc_res);
 	if (IS_ERR(regs))
 		return PTR_ERR(regs);
@@ -2018,6 +2164,21 @@ static int dwc3_runtime_idle(struct device *dev)
 #endif /* CONFIG_PM */
 
 #ifdef CONFIG_PM_SLEEP
+#if defined(MY_ABC_HERE)
+
+#ifdef CONFIG_USB_PATCH_ON_RTK
+/* [DEV_FIX]implement New USB reset mechanism with CRT reset
+ * to workaround any HW or IP issues
+ * commit 319ff9f5c298b94517a10d4ced59812b54994347
+ */
+static int dwc3_suspend(struct device *dev);
+int RTK_dwc3_suspend(struct device *dev)
+{
+	return dwc3_suspend(dev);
+}
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 static int dwc3_suspend(struct device *dev)
 {
 	struct dwc3	*dwc = dev_get_drvdata(dev);
@@ -2025,16 +2186,50 @@ static int dwc3_suspend(struct device *dev)
 
 	if (pm_runtime_suspended(dwc->dev))
 		return 0;
-
+	
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+#ifdef CONFIG_RTK_PLATFORM
+	dev_info(dev, "[USB] Enter %s", __func__);
+	if (RTK_PM_STATE == PM_SUSPEND_STANDBY) {
+		//For idle mode
+		dev_info(dev, "[USB] %s Idle mode\n", __func__);
+		return 0;
+	}
+	//For suspend mode
+	dev_info(dev,  "[USB] %s Suspend mode\n", __func__);
+#endif
+#endif // CONFIG_USB_PATCH_ON_RTK
+#endif /* MY_ABC_HERE */
 	ret = dwc3_suspend_common(dwc, PMSG_SUSPEND);
 	if (ret)
 		return ret;
 
 	pinctrl_pm_select_sleep_state(dev);
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	dev_info(dev, "[USB] Exit %s", __func__);
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 	return 0;
 }
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+/* [DEV_FIX]implement New USB reset mechanism with CRT reset
+ * to workaround any HW or IP issues
+ * commit 319ff9f5c298b94517a10d4ced59812b54994347
+ */
+static int dwc3_resume(struct device *dev);
+int RTK_dwc3_resume(struct device *dev)
+{
+	return dwc3_resume(dev);
+}
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 static int dwc3_resume(struct device *dev)
 {
 	struct dwc3	*dwc = dev_get_drvdata(dev);
@@ -2043,6 +2238,21 @@ static int dwc3_resume(struct device *dev)
 	if (pm_runtime_suspended(dwc->dev))
 		return 0;
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+#ifdef CONFIG_RTK_PLATFORM
+	dev_info(dev, "[USB] Enter %s", __func__);
+	if (RTK_PM_STATE == PM_SUSPEND_STANDBY) {
+		//For idle mode
+		dev_info(dev, "[USB] %s Idle mode\n", __func__);
+		return 0;
+	}
+	//For suspend mode
+	dev_info(dev,  "[USB] %s Suspend mode\n", __func__);
+#endif
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 	pinctrl_pm_select_default_state(dev);
 
 	ret = dwc3_resume_common(dwc, PMSG_RESUME);
@@ -2053,6 +2263,16 @@ static int dwc3_resume(struct device *dev)
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+#if defined(MY_ABC_HERE)
+#else /* MY_ABC_HERE */
+out:
+#endif /* MY_ABC_HERE */
+	dev_info(dev, "[USB] Exit %s", __func__);
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 	return 0;
 }
 

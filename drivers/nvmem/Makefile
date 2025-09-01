@@ -33,6 +33,10 @@ obj-$(CONFIG_ROCKCHIP_EFUSE)	+= nvmem_rockchip_efuse.o
 nvmem_rockchip_efuse-y		:= rockchip-efuse.o
 obj-$(CONFIG_ROCKCHIP_OTP)	+= nvmem-rockchip-otp.o
 nvmem-rockchip-otp-y		:= rockchip-otp.o
+ifeq ($(CONFIG_SYNO_LSP_RTD1619B), y)
+obj-$(CONFIG_RTK_EFUSE)		+= nvmem_rtk-efuse.o
+nvmem_rtk-efuse-y		:= rtk-efuse.o
+endif # CONFIG_SYNO_LSP_RTD1619B
 obj-$(CONFIG_NVMEM_ROCKCHIP_SEC_OTP)	+= nvmem-rockchip-secure-otp.o
 nvmem-rockchip-secure-otp-y	:= rockchip-secure-otp.o
 obj-$(CONFIG_NVMEM_SUNXI_SID)	+= nvmem_sunxi_sid.o

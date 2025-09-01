@@ -1,0 +1,31 @@
+# drivers/syno/Kconfig
+# SPDX-License-Identifier: GPL-2.0
+
+config SYNOBIOS
+	tristate "Synology BIOS/Hardware Abstraction Layer support"
+	default y
+	help
+	  Enable the core hardware abstraction layer (synobios) for Synology
+	  platforms. This is essential for controlling LEDs, fans, disk power,
+	  and other hardware features. Without this, DSM will not boot.
+
+if SYNOBIOS
+
+menu "Synology Platform Selection"
+
+config SYNO_PLATFORM_PURLEY
+	bool "Build for Synology Purley Platform"
+	depends on X86_64
+
+config SYNO_PLATFORM_SKYLAKED
+	bool "Build for Synology Skylake-D Platform"
+	depends on X86_64
+
+config SYNO_PLATFORM_RK3588
+	bool "Build for Synology Rockchip RK3588 Platform"
+	depends on ARM64
+
+endmenu 
+
+endif 
+

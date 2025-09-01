@@ -127,6 +127,9 @@ obj-$(CONFIG_GPIO_RCAR)			+= gpio-rcar.o
 obj-$(CONFIG_GPIO_RDA)			+= gpio-rda.o
 obj-$(CONFIG_GPIO_RDC321X)		+= gpio-rdc321x.o
 obj-$(CONFIG_GPIO_REG)			+= gpio-reg.o
+ifeq ($(CONFIG_SYNO_LSP_RTD1619B), y)
+obj-$(CONFIG_GPIO_RTD)			+= gpio-rtd.o
+endif # CONFIG_SYNO_LSP_RTD1619B
 obj-$(CONFIG_GPIO_ROCKCHIP)		+= gpio-rockchip.o
 obj-$(CONFIG_ARCH_SA1100)		+= gpio-sa1100.o
 obj-$(CONFIG_GPIO_SAMA5D2_PIOBU)	+= gpio-sama5d2-piobu.o
@@ -183,3 +186,4 @@ obj-$(CONFIG_GPIO_XTENSA)		+= gpio-xtensa.o
 obj-$(CONFIG_GPIO_ZEVIO)		+= gpio-zevio.o
 obj-$(CONFIG_GPIO_ZX)			+= gpio-zx.o
 obj-$(CONFIG_GPIO_ZYNQ)			+= gpio-zynq.o
+obj-$(CONFIG_SYNO_GPIO)			+= syno_gpio.o

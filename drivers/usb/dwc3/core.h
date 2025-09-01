@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
  * core.h - DesignWare USB3 DRD Core Header
@@ -206,6 +209,15 @@
 #define DWC3_EVENTQ		7
 #define DWC3_AUXEVENTQ		8
 
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+/* Global TX Threshold Configuration Register */
+#define DWC3_GTXTHRCFG_MAXTXBURSTSIZE(n) (((n) & 0xff) << 16)
+#define DWC3_GTXTHRCFG_TXPKTCNT(n) (((n) & 0xf) << 24)
+#define DWC3_GTXTHRCFG_PKTCNTSEL BIT(29)
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
+
 /* Global RX Threshold Configuration Register */
 #define DWC3_GRXTHRCFG_MAXRXBURSTSIZE(n) (((n) & 0x1f) << 19)
 #define DWC3_GRXTHRCFG_RXPKTCNT(n) (((n) & 0xf) << 24)
@@ -258,6 +270,11 @@
 /* Global User Control 1 Register */
 #define DWC3_GUCTL1_DEV_DECOUPLE_L1L2_EVT	BIT(31)
 #define DWC3_GUCTL1_TX_IPGAP_LINECHECK_DIS	BIT(28)
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+#define DWC3_GUCTL1_DEV_FORCE_20_CLK_FOR_30_CLK BIT(26)
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
 #define DWC3_GUCTL1_DEV_FORCE_20_CLK_FOR_30_CLK	BIT(26)
 #define DWC3_GUCTL1_DEV_L1_EXIT_BY_HW		BIT(24)
 #define DWC3_GUCTL1_PARKMODE_DISABLE_SS		BIT(17)
@@ -312,6 +329,7 @@
 #define DWC3_GUSB3PIPECTL_SUSPHY	BIT(17)
 #define DWC3_GUSB3PIPECTL_LFPSFILT	BIT(9)
 #define DWC3_GUSB3PIPECTL_RX_DETOPOLL	BIT(8)
+
 #define DWC3_GUSB3PIPECTL_TX_DEEPH_MASK	DWC3_GUSB3PIPECTL_TX_DEEPH(3)
 #define DWC3_GUSB3PIPECTL_TX_DEEPH(n)	((n) << 1)
 
@@ -569,6 +587,12 @@
 #define DWC3_DEV_IMOD_COUNT_MASK	(0xffff << 16)
 #define DWC3_DEV_IMOD_INTERVAL_SHIFT	0
 #define DWC3_DEV_IMOD_INTERVAL_MASK	(0xffff << 0)
+
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+#define DWC3_DEVICE_IMODI(n)		((0xffff & (n)))
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
 
 /* OTG Configuration Register */
 #define DWC3_OCFG_DISPWRCUTTOFF		BIT(5)
@@ -1110,6 +1134,9 @@ struct dwc3_scratchpad_array {
  * @dis_split_quirk: set to disable split boundary.
  * @imod_interval: set the interrupt moderation interval in 250ns
  *			increments or 0 to disable.
+#if defined(MY_ABC_HERE)
+ * @fixed_dwc3_globals_regs_start: fix the dwc3 global register start address.
+#endif // MY_ABC_HERE
  * @max_cfg_eps: current max number of IN eps used across all USB configs.
  * @last_fifo_depth: last fifo depth used to determine next fifo ram start
  *		     address.
@@ -1314,6 +1341,11 @@ struct dwc3 {
 	unsigned		dis_u2_freeclk_exists_quirk:1;
 	unsigned		dis_del_phy_power_chg_quirk:1;
 	unsigned		dis_tx_ipgap_linecheck_quirk:1;
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+	unsigned		dev_force_20_clk_for_30_clk:1;
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
 	unsigned		parkmode_disable_ss_quirk:1;
 #ifdef CONFIG_NO_GKI
 	unsigned		parkmode_disable_hs_quirk:1;
@@ -1328,6 +1360,12 @@ struct dwc3 {
 	unsigned		async_callbacks:1;
 
 	u16			imod_interval;
+
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+	u32			fixed_dwc3_globals_regs_start;
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
 
 	int			max_cfg_eps;
 	int			last_fifo_depth;
@@ -1516,6 +1554,12 @@ struct dwc3_gadget_ep_cmd_params {
 void dwc3_set_prtcap(struct dwc3 *dwc, u32 mode);
 void dwc3_set_mode(struct dwc3 *dwc, u32 mode);
 u32 dwc3_core_fifo_space(struct dwc3_ep *dep, u8 type);
+
+#if defined(MY_ABC_HERE)
+#if 1 // USB_PATCH_BY_RTK
+int dwc3_core_soft_reset(struct dwc3 *dwc);
+#endif // USB_PATCH_BY_RTK
+#endif /* MY_ABC_HERE */
 
 #define DWC3_IP_IS(_ip)							\
 	(dwc->ip == _ip##_IP)

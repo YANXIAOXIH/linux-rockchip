@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * scsi_sysfs.c
@@ -25,6 +28,20 @@
 
 #include "scsi_priv.h"
 #include "scsi_logging.h"
+
+#ifdef MY_DEF_HERE
+#include "sd.h"
+#include <linux/synolib.h>
+#include <linux/synobios.h>
+extern struct syno_control_operations syno_control_operations_lists[];
+#endif /* MY_DEF_HERE */
+
+#ifdef MY_ABC_HERE
+#ifdef KERN_INFO
+#undef KERN_INFO
+#define KERN_INFO KERN_NOTICE
+#endif
+#endif /* MY_ABC_HERE */
 
 static struct device_type scsi_dev_type;
 
@@ -500,6 +517,9 @@ static void scsi_device_dev_release_usercontext(struct work_struct *work)
 	if (vpd_pg89)
 		kfree_rcu(vpd_pg89, rcu);
 	kfree(sdev->inquiry);
+#ifdef MY_ABC_HERE
+	kfree(sdev->model);
+#endif /* MY_ABC_HERE */
 	kfree(sdev);
 
 	if (parent)
@@ -585,6 +605,18 @@ void scsi_sysfs_unregister(void)
  * sdev_show_function: macro to create an attr function that can be used to
  * show a non-bit field.
  */
+#ifdef MY_ABC_HERE
+#define sdev_show_function(field, format_string)				\
+static ssize_t								\
+sdev_show_##field (struct device *dev, struct device_attribute *attr,	\
+		   char *buf)						\
+{									\
+	struct scsi_device *sdev;					\
+	sdev = to_scsi_device(dev);					\
+	return snprintf (buf, SYNO_DISK_MODEL_NUM + 4, format_string, sdev->field);		\
+}									\
+
+#else /* MY_ABC_HERE */
 #define sdev_show_function(field, format_string)				\
 static ssize_t								\
 sdev_show_##field (struct device *dev, struct device_attribute *attr,	\
@@ -594,6 +626,8 @@ sdev_show_##field (struct device *dev, struct device_attribute *attr,	\
 	sdev = to_scsi_device(dev);					\
 	return snprintf (buf, 20, format_string, sdev->field);		\
 }									\
+
+#endif /* MY_ABC_HERE */
 
 /*
  * sdev_rd_attr: macro to create a function and attribute variable for a
@@ -665,13 +699,297 @@ static int scsi_sdev_check_buf_bit(const char *buf)
 		return -EINVAL;
 }
 #endif
+
+#ifdef MY_ABC_HERE
+static ssize_t
+syno_disk_serial_show(struct device *device, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev = NULL;
+	ssize_t len = -EFAULT;
+
+	if (NULL == (sdev = to_scsi_device(device))) {
+		goto END;
+	}
+
+	len = snprintf(buf, SERIAL_NUM_SIZE + 2, "%s\n", sdev->syno_disk_serial);
+END:
+	return len;
+}
+static DEVICE_ATTR(syno_disk_serial, S_IRUGO, syno_disk_serial_show, NULL);
+#endif /* MY_ABC_HERE */
+
+#ifdef MY_ABC_HERE
+static ssize_t
+syno_block_info_show(struct device *device, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev = NULL;
+	ssize_t len = -EFAULT;
+#ifdef MY_DEF_HERE
+	char *control_method = NULL;
+	struct syno_control_operations *ctrl_op = NULL;
+	char unique[SYNO_EBOX_UNIQUE_MAX_LEN] = {0};
+	char syno_block_info_tmp[BLOCK_INFO_SIZE] = {0};
+	struct scsi_disk *sdkp = NULL;
+	int container_index = 0;
+#endif /* MY_DEF_HERE */
+
+	if (NULL == (sdev = to_scsi_device(device))) {
+		goto END;
+	}
+
+#ifdef MY_DEF_HERE
+	for (ctrl_op = syno_control_operations_lists; ctrl_op && strlen(ctrl_op->control_method); ctrl_op++) {
+		if (NULL != (control_method = strstr(sdev->syno_block_info, ctrl_op->control_method))) {
+			strncpy(syno_block_info_tmp, control_method + strlen(ctrl_op->control_method), sizeof(syno_block_info_tmp));
+			sdkp = dev_get_drvdata(device);
+			if (!ctrl_op->unique_get || !ctrl_op->container_index_get_by_diskname) {
+				break;
+			}
+			if (0 > ctrl_op->container_index_get_by_diskname(&container_index, sdkp->disk->disk_name)) {
+				break;
+			}
+			if (0 > ctrl_op->unique_get(EUNIT_DEVICE, container_index, unique, sizeof(unique))) {
+				break;
+			}
+
+			snprintf(control_method, BLOCK_INFO_SIZE - strlen(sdev->syno_block_info), "%s", unique);
+			snprintf(sdev->syno_block_info + strlen(sdev->syno_block_info),
+					BLOCK_INFO_SIZE - strlen(sdev->syno_block_info), "%s", syno_block_info_tmp);
+		}
+	}
+#endif /* MY_DEF_HERE */
+
+	len = snprintf(buf, BLOCK_INFO_SIZE , "%s", sdev->syno_block_info);
+END:
+	return len;
+}
+static DEVICE_ATTR(syno_block_info, S_IRUGO, syno_block_info_show, NULL);
+#endif /* MY_ABC_HERE */
+
+#ifdef MY_ABC_HERE
+/* FIXME: We don't know why SAS disks led blinking when open it, so we add a sysfs interface to prevent it
+ * The following code is copied from "case SD_IOCTL_IDLE: " ind "sd.c" */
+static ssize_t
+sdev_show_syno_idle_time(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev;
+	int iRet = -EFAULT;
+
+	if (NULL == (sdev = to_scsi_device(dev))) {
+		goto END;
+	}
+
+	iRet = snprintf(buf, 20, "%lu\n", (jiffies - sdev->last_accessed) / HZ + 1);
+
+END:
+	return iRet;
+}
+
+static ssize_t
+sdev_store_syno_idle_time(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct scsi_device *sdev;
+	unsigned long idletime;
+
+	if (NULL == (sdev = to_scsi_device(dev))) {
+		goto END;
+	}
+
+	sscanf(buf, "%lu", &idletime);
+	// idletime = (jiffies - sdev->last_accessed) / HZ + 1
+	sdev->last_accessed = jiffies - (idletime - 1) * HZ;
+
+END:
+	return count;
+}
+
+static DEVICE_ATTR(syno_idle_time, S_IRUGO | S_IWUSR, sdev_show_syno_idle_time, sdev_store_syno_idle_time);
+#endif /* MY_ABC_HERE */
+
+#ifdef MY_ABC_HERE
+static ssize_t
+sdev_show_syno_spindown(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev;
+	int iRet = -EFAULT;
+
+	if (NULL == (sdev = to_scsi_device(dev))) {
+		goto END;
+	}
+
+	iRet = snprintf(buf, 20, "%d\n", sdev->spindown);
+
+END:
+	return iRet;
+}
+
+static DEVICE_ATTR(syno_spindown, S_IRUGO, sdev_show_syno_spindown, NULL);
+
+
+#ifdef MY_DEF_HERE
+static ssize_t
+sdev_show_syno_sas_sata_standby_flag(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev;
+	int iRet = -EFAULT;
+
+	if (NULL == (sdev = to_scsi_device(dev))) {
+		goto END;
+	}
+
+	iRet = snprintf(buf, 20, "%ld\n", sdev->sas_sata_standby_flag);
+
+END:
+	return iRet;
+}
+
+static DEVICE_ATTR(syno_sas_sata_standby_flag, S_IRUGO, sdev_show_syno_sas_sata_standby_flag, NULL);
+#endif /* MY_DEF_HERE */
+
+static ssize_t
+sdev_show_syno_standby_syncing(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev;
+	int iRet = -EFAULT;
+
+	if (NULL == (sdev = to_scsi_device(dev))) {
+		goto END;
+	}
+
+	iRet = snprintf (buf, 20, "%u\n", sdev->do_standby_syncing);
+
+END:
+	return iRet;
+}
+
+static ssize_t
+sdev_store_syno_standby_syncing(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct scsi_device *sdev;
+	unsigned long ulstandby_syncing;
+
+	if (NULL == (sdev = to_scsi_device(dev))) {
+		goto END;
+	}
+
+	sscanf(buf, "%lu", &ulstandby_syncing);
+	if (0 < ulstandby_syncing) {
+		sdev->do_standby_syncing = 1;
+	} else {
+		sdev->do_standby_syncing = 0;
+	}
+
+END:
+	return count;
+}
+
+static DEVICE_ATTR(syno_standby_syncing, S_IRUGO | S_IWUSR, sdev_show_syno_standby_syncing, sdev_store_syno_standby_syncing);
+#endif /* MY_ABC_HERE */
+
+#ifdef MY_ABC_HERE
+/**
+ * Show customized timeout of the disk
+ */
+static ssize_t
+syno_scmd_min_timeout_show (struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev = to_scsi_device(dev);
+	ssize_t len = -EIO;
+
+	if (!sdev) {
+		goto END;
+	}
+
+	if (0 == sdev->scmd_timeout_sec) {
+		len = sprintf(buf, "%s", "<not set>\n");
+	} else {
+		len = sprintf(buf, "%d%s", sdev->scmd_timeout_sec, "\n");
+	}
+
+END:
+	return len;
+}
+
+/**
+ * Set customized timeout of the disk
+ */
+static ssize_t
+syno_scmd_min_timeout_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct scsi_device *sdev = to_scsi_device(dev);
+	int iTimeoutSec = 0;
+	ssize_t ret = -EIO;
+
+	if (!sdev) {
+		goto END;
+	}
+
+	/* Check the input value is in the available range [1 - 60] */
+	sscanf(buf, "%d", &iTimeoutSec);
+	if (0 >= iTimeoutSec || 60 < iTimeoutSec) {
+		printk(KERN_ERR "Invalid argument !!\n");
+		goto END;
+	}
+	sdev->scmd_timeout_sec = iTimeoutSec;
+
+	ret = count;
+
+END:
+	return ret;
+}
+DEVICE_ATTR(syno_scmd_min_timeout, S_IRUGO | S_IWUSR, syno_scmd_min_timeout_show, syno_scmd_min_timeout_store);
+#endif /* MY_ABC_HERE */
+
+#ifdef CONFIG_SYNO_SCSI_DEVICE_SPINDOWN_BEFORE_POWEROFF
+static ssize_t
+syno_spindown_before_poweroff_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct scsi_device *sdev = to_scsi_device(dev);
+	ssize_t len = -EIO;
+
+	if (!sdev) {
+		goto END;
+	}
+
+	len = sprintf(buf, "%u", sdev->manage_start_stop);
+
+END:
+	return len;
+}
+
+static ssize_t
+syno_spindown_before_poweroff_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	struct scsi_device *sdev = to_scsi_device(dev);
+	unsigned uVal;
+	if (1 != sscanf (buf, "%u\n", &uVal)) {
+		return -EINVAL;
+	}
+	if (1 < uVal) {
+		return -EINVAL;
+	}
+	sdev->manage_start_stop = uVal;
+	return count;
+}
+
+static DEVICE_ATTR(syno_spindown_before_poweroff, S_IRUGO | S_IWUSR,
+		syno_spindown_before_poweroff_show,
+		syno_spindown_before_poweroff_store);
+#endif /* CONFIG_SYNO_SCSI_DEVICE_SPINDOWN_BEFORE_POWEROFF */
 /*
  * Create the actual show/store functions and data structures.
  */
 sdev_rd_attr (type, "%d\n");
 sdev_rd_attr (scsi_level, "%d\n");
 sdev_rd_attr (vendor, "%.8s\n");
+#ifdef MY_ABC_HERE
+sdev_rd_attr (model, "%."SYNO_DISK_MODEL_LEN"s\n");
+#else /* MY_ABC_HERE */
 sdev_rd_attr (model, "%.16s\n");
+#endif /* MY_ABC_HERE */
 sdev_rd_attr (rev, "%.4s\n");
 
 static ssize_t
@@ -1025,6 +1343,9 @@ sdev_store_queue_depth(struct device *dev, struct device_attribute *attr,
 	int depth, retval;
 	struct scsi_device *sdev = to_scsi_device(dev);
 	struct scsi_host_template *sht = sdev->host->hostt;
+#ifdef MY_ABC_HERE
+	unsigned long flags;
+#endif /* MY_ABC_HERE */
 
 	if (!sht->change_queue_depth)
 		return -EINVAL;
@@ -1034,11 +1355,26 @@ sdev_store_queue_depth(struct device *dev, struct device_attribute *attr,
 	if (depth < 1 || depth > sdev->host->can_queue)
 		return -EINVAL;
 
+#ifdef MY_ABC_HERE
+	//spin_lock_irqsave to prevent scsi_softirq_done() will call scsi_handle_queue_ramp_up() to increase queue_depth
+	spin_lock_irqsave(sdev->host->host_lock, flags);
+#endif /* MY_ABC_HERE */
+
 	retval = sht->change_queue_depth(sdev, depth);
 	if (retval < 0)
+#ifdef MY_ABC_HERE
+	{
+		spin_unlock_irqrestore(sdev->host->host_lock, flags);
+#endif /* MY_ABC_HERE */
 		return retval;
+#ifdef MY_ABC_HERE
+	}
+#endif /* MY_ABC_HERE */
 
 	sdev->max_queue_depth = sdev->queue_depth;
+#ifdef MY_ABC_HERE
+	spin_unlock_irqrestore(sdev->host->host_lock, flags);
+#endif /* MY_ABC_HERE */
 
 	return count;
 }
@@ -1297,6 +1633,28 @@ static struct attribute *scsi_sdev_attrs[] = {
 	&dev_attr_preferred_path.attr,
 #endif
 	&dev_attr_queue_ramp_up_period.attr,
+#ifdef MY_ABC_HERE
+	&dev_attr_syno_block_info.attr,
+#endif /* MY_ABC_HERE */
+#ifdef MY_ABC_HERE
+	&dev_attr_syno_idle_time.attr,
+#endif /* MY_ABC_HERE */
+#ifdef MY_ABC_HERE
+	&dev_attr_syno_spindown.attr,
+#ifdef MY_DEF_HERE
+	&dev_attr_syno_sas_sata_standby_flag.attr,
+#endif /* MY_DEF_HERE */
+	&dev_attr_syno_standby_syncing.attr,
+#endif /* MY_ABC_HERE */
+#ifdef CONFIG_SYNO_SCSI_DEVICE_SPINDOWN_BEFORE_POWEROFF
+	&dev_attr_syno_spindown_before_poweroff.attr,
+#endif /* CONFIG_SYNO_SCSI_DEVICE_SPINDOWN_BEFORE_POWEROFF */
+#ifdef MY_ABC_HERE
+	&dev_attr_syno_disk_serial.attr,
+#endif /* MY_ABC_HERE */
+#ifdef MY_ABC_HERE
+	&dev_attr_syno_scmd_min_timeout.attr,
+#endif /* MY_ABC_HERE */
 	REF_EVT(media_change),
 	REF_EVT(inquiry_change_reported),
 	REF_EVT(capacity_change_reported),
@@ -1497,6 +1855,10 @@ void __scsi_remove_device(struct scsi_device *sdev)
 	put_device(dev);
 }
 
+#ifdef MY_ABC_HERE
+int (*syno_raid_scsi_unplug)(char *szDiskName) = NULL;
+EXPORT_SYMBOL(syno_raid_scsi_unplug);
+#endif /* MY_ABC_HERE */
 /**
  * scsi_remove_device - unregister a device from the scsi bus
  * @sdev:	scsi_device to unregister
@@ -1508,6 +1870,15 @@ void scsi_remove_device(struct scsi_device *sdev)
 	mutex_lock(&shost->scan_mutex);
 	__scsi_remove_device(sdev);
 	mutex_unlock(&shost->scan_mutex);
+#ifdef MY_DEF_HERE
+	SynoSpinupRemove(sdev);
+#endif /* MY_DEF_HERE */
+#ifdef MY_ABC_HERE
+#ifdef MY_ABC_HERE
+	if (syno_raid_scsi_unplug)
+		syno_raid_scsi_unplug(sdev->syno_disk_name);
+#endif /* MY_ABC_HERE */
+#endif  /* MY_ABC_HERE */
 }
 EXPORT_SYMBOL(scsi_remove_device);
 

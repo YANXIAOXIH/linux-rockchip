@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * xHCI host controller driver
@@ -188,6 +191,10 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 	command |= CMD_RESET;
 	writel(command, &xhci->op_regs->command);
 
+#ifdef MY_ABC_HERE
+	mdelay(100);
+#endif /* MY_ABC_HERE */
+
 	/* Existing Intel xHCI controllers require a delay of 1 mS,
 	 * after setting the CMD_RESET bit, and before accessing any
 	 * HC registers. This allows the HC to complete the
@@ -207,6 +214,11 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			 "Wait for controller to be ready for doorbell rings");
+
+#ifdef MY_ABC_HERE
+	mdelay(100);
+#endif /* MY_ABC_HERE */
+
 	/*
 	 * xHCI cannot write to any doorbells or operational registers other
 	 * than status until the "Controller Not Ready" flag is cleared.
@@ -1584,6 +1596,15 @@ static int xhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 		ret = -EINVAL;
 		goto free_priv;
 	}
+
+#ifdef MY_ABC_HERE
+	if (xhci->devs[slot_id]->disconnected) {
+		xhci_warn(xhci, "Ignore URB enqueuing while device "
+				"is disconnecting\n");
+		ret = -ENOTCONN;
+		goto free_priv;
+	}
+#endif /* MY_ABC_HERE */
 
 	switch (usb_endpoint_type(&urb->ep->desc)) {
 

@@ -222,6 +222,13 @@ config USB_F_ACC
 config USB_F_AUDIO_SRC
 	tristate
 
+if SYNO_LSP_RTD1619B
+config USB_F_MTP
+	tristate
+
+config USB_F_PTP
+        tristate
+endif # SYNO_LSP_RTD1619B
 # this first set of drivers all depend on bulk-capable hardware.
 
 config USB_CONFIGFS
@@ -402,6 +409,21 @@ config USB_CONFIGFS_F_AUDIO_SRC
 	help
 	  USB gadget Audio Source support
 
+if SYNO_LSP_RTD1619B
+config USB_CONFIGFS_F_MTP
+	bool "MTP gadget"
+	depends on USB_CONFIGFS
+	select USB_F_MTP
+	help
+	  USB gadget MTP support
+
+config USB_CONFIGFS_F_PTP
+	bool "PTP gadget"
+	depends on USB_CONFIGFS && USB_CONFIGFS_F_MTP
+	select USB_F_PTP
+	help
+	  USB gadget PTP support
+endif # SYNO_LSP_RTD1619B
 config USB_CONFIGFS_F_UAC1
 	bool "Audio Class 1.0"
 	depends on USB_CONFIGFS

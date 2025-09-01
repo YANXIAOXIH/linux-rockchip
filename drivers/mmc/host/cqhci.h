@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2015, The Linux Foundation. All rights reserved.
  */
@@ -214,6 +217,7 @@ struct cqhci_host_ops;
 struct mmc_host;
 struct mmc_request;
 struct cqhci_slot;
+struct mmc_data;
 
 struct cqhci_host {
 	const struct cqhci_host_ops *ops;
@@ -286,6 +290,10 @@ struct cqhci_host_ops {
 				 u64 *data);
 	void (*pre_enable)(struct mmc_host *mmc);
 	void (*post_disable)(struct mmc_host *mmc);
+#if defined(MY_ABC_HERE)
+	void (*setup_tran_desc)(struct mmc_data *data,
+				    struct cqhci_host *cq_host, u8 *desc, int sg_count);
+#endif /* MY_ABC_HERE */
 #ifdef CONFIG_MMC_CRYPTO
 	int (*program_key)(struct cqhci_host *cq_host,
 			   const union cqhci_crypto_cfg_entry *cfg, int slot);

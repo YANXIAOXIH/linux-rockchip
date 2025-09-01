@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /*
  * AMD 10Gb Ethernet driver
  *
@@ -402,14 +405,27 @@ static void xgbe_an73_set(struct xgbe_prv_data *pdata, bool enable,
 		reg |= MDIO_AN_CTRL1_RESTART;
 
 	XMDIO_WRITE(pdata, MDIO_MMD_AN, MDIO_CTRL1, reg);
+
+	if (xgbe_in_kr_mode(pdata) && (enable || restart)) {
+		reg = XMDIO_READ(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_10GBR_PMD_CTRL);
+		reg |= XGBE_KR_TRAINING_ENABLE;
+		reg |= XGBE_KR_TRAINING_START;
+		XMDIO_WRITE(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_10GBR_PMD_CTRL, reg);
+
+		XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_RX_EQ_CTRL,
+				 BIT(15), BIT(15)); /* Disable RX Adapter */
+	}
 }
 
 static void xgbe_an73_restart(struct xgbe_prv_data *pdata)
 {
-	xgbe_an73_enable_interrupts(pdata);
-	xgbe_an73_set(pdata, true, true);
+	/* When an_kr_workaround is enabled, AN is already done for KR mode */
+	if (!pdata->vdata->an_kr_workaround || !xgbe_in_kr_mode(pdata)) {
+		xgbe_an73_enable_interrupts(pdata);
+		xgbe_an73_set(pdata, true, true);
+	}
 
-	netif_dbg(pdata, link, pdata->netdev, "CL73 AN enabled/restarted\n");
+	netif_dbg(pdata, link, pdata->netdev, "CL73 AN enabled/restarted, CL72 started\n");
 }
 
 static void xgbe_an73_disable(struct xgbe_prv_data *pdata)
@@ -489,20 +505,40 @@ static enum xgbe_an xgbe_an73_tx_training(struct xgbe_prv_data *pdata,
 	XMDIO_WRITE(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_10GBR_FECCTRL, reg);
 
 	/* Start KR training */
+	if (!pdata->phy_if.phy_impl.kr_training_cdroff(pdata))
+		netif_dbg(pdata, link, pdata->netdev, "setting phy_data->phy_cdr_notrack\n");
+
+	pdata->cdr_delay_required = 1;
+
 	if (pdata->phy_if.phy_impl.kr_training_pre)
 		pdata->phy_if.phy_impl.kr_training_pre(pdata);
 
 	reg = XMDIO_READ(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_10GBR_PMD_CTRL);
-	reg |= XGBE_KR_TRAINING_ENABLE;
 	reg |= XGBE_KR_TRAINING_START;
 	XMDIO_WRITE(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_10GBR_PMD_CTRL, reg);
+
+	pdata->kr_done = 1;
 	pdata->kr_start_time = jiffies;
 
 	netif_dbg(pdata, link, pdata->netdev,
 		  "KR training initiated\n");
 
+	/* set RX_EQ_MGMT_MODE to disable RX Adapt Requests */
+	XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_RX_EQ_CTRL, BIT(15), BIT(15));
+	XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_VEND2_PMA_CDR_CONTROL,
+			 XGBE_PMA_CDR_TRACK_EN_MASK,
+			 XGBE_PMA_CDR_TRACK_EN_OFF);
+	XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_RX_CTRL0, BIT(8), 0);
 	if (pdata->phy_if.phy_impl.kr_training_post)
 		pdata->phy_if.phy_impl.kr_training_post(pdata);
+
+	XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_RX_CTRL0, BIT(8), BIT(8));
+	pdata->cdr_delay_required = 0;
+	udelay(1);
+	XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_PMA_RX_EQ_CTRL,
+			 BIT(15), 0);
+	if (pdata->phy_if.phy_impl.update_cdr_delay)
+		pdata->phy_if.phy_impl.update_cdr_delay(pdata);
 
 	return XGBE_AN_PAGE_RECEIVED;
 }
@@ -632,6 +668,8 @@ static enum xgbe_an xgbe_an73_incompat_link(struct xgbe_prv_data *pdata)
 	xgbe_an_disable(pdata);
 
 	xgbe_switch_mode(pdata);
+
+	pdata->an_result = XGBE_AN_READY;
 
 	pdata->an_result = XGBE_AN_READY;
 
@@ -857,6 +895,8 @@ again:
 		break;
 
 	case XGBE_AN_PAGE_RECEIVED:
+		if (xgbe_in_kr_mode(pdata))
+			pdata->an_int = 0;
 		pdata->an_state = xgbe_an73_page_received(pdata);
 		pdata->an_supported++;
 		break;
@@ -900,8 +940,6 @@ again:
 		pdata->kx_state = XGBE_RX_BPA;
 		pdata->an_start = 0;
 
-		if (pdata->phy_if.phy_impl.an_post)
-			pdata->phy_if.phy_impl.an_post(pdata);
 
 		netif_dbg(pdata, link, pdata->netdev, "CL73 AN result: %s\n",
 			  xgbe_state_as_string(pdata->an_result));
@@ -1134,7 +1172,11 @@ static void xgbe_phy_adjust_link(struct xgbe_prv_data *pdata)
 			new_state = 1;
 			pdata->phy_link = pdata->phy.link;
 		}
+#ifdef MY_DEF_HERE
+	} else if (0 < pdata->phy_link) {
+#else /* MY_DEF_HERE */
 	} else if (pdata->phy_link) {
+#endif /* MY_DEF_HERE */
 		new_state = 1;
 		pdata->phy_link = 0;
 		pdata->phy_speed = SPEED_UNKNOWN;
@@ -1191,6 +1233,12 @@ static int xgbe_phy_config_fixed(struct xgbe_prv_data *pdata)
 		xgbe_change_mode(pdata, mode);
 	else
 		xgbe_set_mode(pdata, mode);
+
+	if (pdata->phy.autoneg == AUTONEG_DISABLE) {
+		XMDIO_WRITE_BITS(pdata, MDIO_MMD_PMAPMD, MDIO_VEND2_PMA_MISC_CTRL0,
+				 XGBE_PMA_PLL_CTRL_MASK, XGBE_PMA_PLL_CTRL_SET);
+		usleep_range(100, 200);
+	}
 
 	return 0;
 }
@@ -1258,6 +1306,9 @@ static int __xgbe_phy_config_aneg(struct xgbe_prv_data *pdata, bool set_mode)
 	/* Re-enable auto-negotiation interrupt */
 	enable_irq(pdata->an_irq);
 
+	if (pdata->phy_if.phy_impl.an_post)
+		pdata->phy_if.phy_impl.an_post(pdata);
+
 	xgbe_an_init(pdata);
 	xgbe_an_restart(pdata);
 
@@ -1291,32 +1342,45 @@ static void xgbe_check_link_timeout(struct xgbe_prv_data *pdata)
 {
 	unsigned long link_timeout;
 	unsigned long kr_time;
+	unsigned long rrc_time;
 	int wait;
 
 	link_timeout = pdata->link_check + (XGBE_LINK_TIMEOUT * HZ);
 	if (time_after(jiffies, link_timeout)) {
-		if ((xgbe_cur_mode(pdata) == XGBE_MODE_KR) &&
+		if ((xgbe_cur_mode(pdata) == XGBE_MODE_KR) ||
+            (xgbe_cur_mode(pdata) == XGBE_MODE_KX_1000)) &&
 		    pdata->phy.autoneg == AUTONEG_ENABLE) {
 			/* AN restart should not happen while KR training is in progress.
 			 * The while loop ensures no AN restart during KR training,
 			 * waits up to 500ms and AN restart is triggered only if KR
 			 * training is failed.
 			 */
-			wait = XGBE_KR_TRAINING_WAIT_ITER;
+			wait = 100;
 			while (wait--) {
-				kr_time = pdata->kr_start_time +
-					  msecs_to_jiffies(XGBE_AN_MS_TIMEOUT);
-				if (time_after(jiffies, kr_time))
-					break;
-				/* AN restart is not required, if AN result is COMPLETE */
-				if (pdata->an_result == XGBE_AN_COMPLETE)
-					return;
-				usleep_range(10000, 11000);
+                mutex_lock(&pdata->an_mutex);
+                kr_time = pdata->kr_start_time +
+                          msecs_to_jiffies(XGBE_AN_MS_TIMEOUT);
+                rrc_time = pdata->rrc_start_time +
+                           msecs_to_jiffies(XGBE_AN_MS_TIMEOUT);
+                mutex_unlock(&pdata->an_mutex);
+
+                if (pdata->an_result == XGBE_AN_COMPLETE)
+                    break;
+
+                if (time_after(jiffies, kr_time) && time_after(jiffies, rrc_time))
+                    break;
+
+                usleep_range(5000, 6000);
 			}
 		}
-		netif_dbg(pdata, link, pdata->netdev, "AN link timeout\n");
-		xgbe_phy_config_aneg(pdata);
-	}
+        netif_dbg(pdata, link, pdata->netdev, "AN link timeout\n");
+
+        if (pdata->an_result != XGBE_AN_COMPLETE)
+            xgbe_phy_config_aneg(pdata);
+        else if ((pdata->an_result == XGBE_AN_COMPLETE) &&
+                 (xgbe_cur_mode(pdata) == XGBE_MODE_KX_1000))
+            xgbe_phy_config_aneg(pdata);
+    }
 }
 
 static enum xgbe_mode xgbe_phy_status_aneg(struct xgbe_prv_data *pdata)
@@ -1391,6 +1455,8 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 
 	if (pdata->phy.link) {
 		if (link_aneg && !xgbe_phy_aneg_done(pdata)) {
+			pdata->phy.link = 0;
+			xgbe_phy_adjust_link(pdata);
 			xgbe_check_link_timeout(pdata);
 			return;
 		}
@@ -1402,17 +1468,34 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 			clear_bit(XGBE_LINK_INIT, &pdata->dev_state);
 
 		netif_carrier_on(pdata->netdev);
+
+		if (link_aneg && pdata->kr_done)
+			pdata->phy_if.phy_impl.reset_cdr_delay(pdata);
+
 	} else {
 		if (test_bit(XGBE_LINK_INIT, &pdata->dev_state)) {
 			xgbe_check_link_timeout(pdata);
 
+#ifdef MY_DEF_HERE
+			/* Bug fix for AN failure in KR mode */
+			if (link_aneg && !xgbe_phy_aneg_done(pdata)) {
+				return;
+			}
+#else /* MY_DEF_HERE */
 			if (link_aneg)
 				return;
+#endif /* MY_DEF_HERE */
 		}
 
 		xgbe_phy_status_result(pdata);
 
 		netif_carrier_off(pdata->netdev);
+
+		if (link_aneg && ((pdata->phy_if.phy_impl.cur_mode(pdata) == XGBE_MODE_KR) ||
+				  (pdata->phy_if.phy_impl.cur_mode(pdata) == XGBE_MODE_KX_1000))) {
+			if (!test_bit(XGBE_LINK_INIT, &pdata->dev_state))
+				set_bit(XGBE_LINK_INIT, &pdata->dev_state);
+		}
 	}
 
 adjust_link:

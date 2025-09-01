@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015, Linaro Limited
@@ -793,7 +796,16 @@ static struct platform_driver optee_driver = {
 		.of_match_table = optee_dt_match,
 	},
 };
+#if defined(MY_ABC_HERE)
+
+static int __init optee_init(void)
+{
+	return platform_driver_register(&optee_driver);
+}
+subsys_initcall(optee_init);
+#else /* MY_ABC_HERE */
 module_platform_driver(optee_driver);
+#endif /* MY_ABC_HERE */
 
 MODULE_AUTHOR("Linaro");
 MODULE_DESCRIPTION("OP-TEE driver");

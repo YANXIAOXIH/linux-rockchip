@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0 */
 
 /*
@@ -1039,6 +1042,9 @@ struct xhci_virt_device {
 	u16				current_mel;
 	/* Used for the debugfs interfaces. */
 	void				*debugfs_private;
+#ifdef MY_ABC_HERE
+	bool                            disconnected;
+#endif /* MY_ABC_HERE */
 };
 
 /*
@@ -1554,6 +1560,19 @@ enum xhci_cancelled_td_status {
 	TD_CLEARED,
 };
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+struct xhci_cache_buf {
+	dma_addr_t		dma;
+	void			*buf;
+	unsigned int		offs;
+	unsigned int		len;
+
+	struct list_head list;
+};
+#endif /* CONFIG_USB_PATCH_ON_RTK */
+
+#endif /* MY_ABC_HERE */
 struct xhci_td {
 	struct list_head	td_list;
 	struct list_head	cancelled_td_list;
@@ -1568,6 +1587,13 @@ struct xhci_td {
 	/* actual_length of the URB has already been set */
 	bool			urb_length_set;
 	unsigned int		num_trbs;
+
+#if defined(MY_ABC_HERE)
+
+#ifdef CONFIG_USB_PATCH_ON_RTK
+	struct list_head cache_buf_list;
+#endif /* CONFIG_USB_PATCH_ON_RTK */
+#endif /* MY_ABC_HERE */
 };
 
 /* xHCI command default timeout value */

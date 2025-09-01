@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * xhci-plat.c - xHCI host controller driver platform Bus Glue.
@@ -223,6 +226,12 @@ static void xhci_vendor_cleanup(struct xhci_hcd *xhci)
 
 static int xhci_plat_probe(struct platform_device *pdev)
 {
+#ifdef MY_ABC_HERE
+#ifdef MY_ABC_HERE
+#else /* MY_ABC_HERE */
+	u32 vbus_gpio_pin = 0;
+#endif /* MY_ABC_HERE */
+#endif /* MY_ABC_HERE */
 	const struct xhci_plat_priv *priv_match;
 	const struct hc_driver	*driver;
 	struct device		*sysdev, *tmpdev;
@@ -387,6 +396,36 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (ret)
 		goto disable_usb_phy;
 
+#ifdef MY_ABC_HERE
+#ifdef MY_ABC_HERE
+	hcd->power_control_support = 1;
+	dev_info(&pdev->dev, "power control %s\n", hcd->power_control_support ?
+			"enabled" : "disabled");
+#else /* MY_ABC_HERE */
+	if (node) {
+		if (of_property_read_bool(node, "power-control-capable")) {
+			hcd->power_control_support = 1;
+		} else {
+			hcd->power_control_support = 0;
+		}
+		if (of_property_read_bool(node, "vbus-gpio")) {
+			of_property_read_u32(node, "vbus-gpio", &vbus_gpio_pin);
+			/* hcd->vbus_gpio_pin' is an integer, but vbus_gpio_pin is
+			 * an unsigned integer. It should be safe because it's enough
+			 * for gpio number.
+			 */
+			hcd->vbus_gpio_pin = vbus_gpio_pin;
+		} else {
+			hcd->vbus_gpio_pin = -1;
+			dev_warn(&pdev->dev, "failed to get Vbus gpio\n");
+		}
+	}
+	dev_info(&pdev->dev, "USB2 Vbus gpio %d\n", hcd->vbus_gpio_pin);
+	dev_info(&pdev->dev, "power control %s\n", hcd->power_control_support ?
+			"enabled" : "disabled");
+#endif /* MY_ABC_HERE */
+#endif /* MY_ABC_HERE */
+
 	hcd->tpl_support = of_usb_host_tpl_support(sysdev->of_node);
 	xhci->shared_hcd->tpl_support = hcd->tpl_support;
 
@@ -405,6 +444,21 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (ret)
 		goto disable_usb_phy;
+
+#ifdef MY_ABC_HERE
+#ifdef MY_ABC_HERE
+	xhci->shared_hcd->power_control_support = hcd->power_control_support;
+	dev_info(&pdev->dev, "power control %s\n", hcd->power_control_support ?
+		"enabled" : "disabled");
+#else /* MY_ABC_HERE */
+	xhci->shared_hcd->vbus_gpio_pin = hcd->vbus_gpio_pin;
+	xhci->shared_hcd->power_control_support = hcd->power_control_support;
+	dev_info(&pdev->dev, "USB3 Vbus gpio %d\n",
+			xhci->shared_hcd->vbus_gpio_pin);
+	dev_info(&pdev->dev, "power control %s\n", hcd->power_control_support ?
+			"enabled" : "disabled");
+#endif /* MY_ABC_HERE */
+#endif /* MY_ABC_HERE */	
 
 	if (HCC_MAX_PSA(xhci->hcc_params) >= 4)
 		xhci->shared_hcd->can_do_streams = 1;
@@ -481,11 +535,39 @@ static int xhci_plat_remove(struct platform_device *dev)
 	return 0;
 }
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+/* [DEV_FIX]implement New USB reset mechanism with CRT reset to workaround any HW or IP issues
+ * commit 319ff9f5c298b94517a10d4ced59812b54994347
+ */
+static int xhci_plat_suspend(struct device *dev);
+int RTK_xhci_plat_suspend(struct device *dev) {
+	return xhci_plat_suspend(dev);
+}
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+
+#endif /* MY_ABC_HERE */
 static int __maybe_unused xhci_plat_suspend(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 	int ret;
+
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+#ifdef CONFIG_RTK_PLATFORM
+	if (RTK_PM_STATE == PM_SUSPEND_STANDBY) {
+		dev_info(dev, "[USB] %s Idle mode\n", __func__);
+		return 0;
+	} else
+		xhci_info(xhci, "[USB] %s Suspend mode --> xhci_suspend (do_wakeup=%s)",
+			__func__, device_may_wakeup(dev)? "true":"false");
+#endif
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+
+#endif /* MY_ABC_HERE */
 
 	if (pm_runtime_suspended(dev))
 		pm_runtime_resume(dev);
@@ -509,12 +591,36 @@ static int __maybe_unused xhci_plat_suspend(struct device *dev)
 	return 0;
 }
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+/* [DEV_FIX]implement New USB reset mechanism with CRT reset to workaround any HW or IP issues
+ * commit 319ff9f5c298b94517a10d4ced59812b54994347
+ */
+static int xhci_plat_resume(struct device *dev);
+int RTK_xhci_plat_resume(struct device *dev)
+{
+	return xhci_plat_resume(dev);
+}
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 static int __maybe_unused xhci_plat_resume(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 	int ret;
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+#ifdef CONFIG_RTK_PLATFORM
+	if (RTK_PM_STATE == PM_SUSPEND_STANDBY) {
+		dev_info(dev, "[USB] %s Idle mode\n", __func__);
+		return 0;
+	} else
+		dev_info(dev,  "[USB] %s Suspend mode --> xhci_resume\n", __func__);
+#endif
+#endif // CONFIG_USB_PATCH_ON_RTK
 
+#endif /* MY_ABC_HERE */
 	if (!device_may_wakeup(dev) && (xhci->quirks & XHCI_SUSPEND_RESUME_CLKS)) {
 		ret = clk_prepare_enable(xhci->clk);
 		if (ret)

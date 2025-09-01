@@ -95,6 +95,9 @@ obj-$(CONFIG_I2C_QCOM_GENI)	+= i2c-qcom-geni.o
 obj-$(CONFIG_I2C_QUP)		+= i2c-qup.o
 obj-$(CONFIG_I2C_RIIC)		+= i2c-riic.o
 obj-$(CONFIG_I2C_RK3X)		+= i2c-rk3x.o
+ifeq ($(CONFIG_SYNO_LSP_RTD1619B), y)
+obj-$(CONFIG_I2C_REALTEK)	+= i2c-rtk.o
+endif # CONFIG_SYNO_LSP_RTD1619B
 obj-$(CONFIG_I2C_S3C2410)	+= i2c-s3c2410.o
 obj-$(CONFIG_I2C_SH7760)	+= i2c-sh7760.o
 obj-$(CONFIG_I2C_SH_MOBILE)	+= i2c-sh_mobile.o
@@ -148,5 +151,6 @@ obj-$(CONFIG_I2C_SIBYTE)	+= i2c-sibyte.o
 obj-$(CONFIG_I2C_XGENE_SLIMPRO) += i2c-xgene-slimpro.o
 obj-$(CONFIG_SCx200_ACB)	+= scx200_acb.o
 obj-$(CONFIG_I2C_FSI)		+= i2c-fsi.o
+obj-$(CONFIG_SYNO_PCI_EUNIT_I2C) += i2c-asm28xx.o
 
 ccflags-$(CONFIG_I2C_DEBUG_BUS) := -DDEBUG

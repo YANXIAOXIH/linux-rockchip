@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * drivers/usb/driver.c - most of the driver model stuff for usb
@@ -245,6 +248,9 @@ static const struct usb_device_id *usb_match_dynamic_id(struct usb_interface *in
 	return NULL;
 }
 
+#ifdef MY_ABC_HERE
+#include <linux/synobios.h>
+#endif /* MY_ABC_HERE */
 
 /* called from driver core with dev locked */
 static int usb_probe_device(struct device *dev)
@@ -300,6 +306,20 @@ static int usb_probe_device(struct device *dev)
 	return error;
 }
 
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+int RTK_usb_probe_device(struct device *dev)
+{
+	int ret = 0;
+	ret = usb_probe_device(dev);
+	return ret;
+}
+#if defined(MY_ABC_HERE)
+EXPORT_SYMBOL(RTK_usb_probe_device);
+#endif /* MY_ABC_HERE */
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 /* called from driver core with dev locked */
 static int usb_unbind_device(struct device *dev)
 {
@@ -315,6 +335,37 @@ static int usb_unbind_device(struct device *dev)
 	return 0;
 }
 
+#ifdef MY_DEF_HERE
+/* called from driver core with dev locked */
+static void syno_usb_shutdown_device(struct device *dev)
+{
+	struct usb_device *udev = to_usb_device(dev);
+	int retval = 0;
+
+	if (!udev->parent || 0 < udev->maxchild)
+		return;
+
+	retval = usb_unbind_device(dev);
+	if (retval) {
+		dev_warn(dev, "Fail to unbind device driver, ret %d\n", retval);
+	}
+}
+#endif /* MY_DEF_HERE */
+
+#if defined(MY_ABC_HERE)
+#ifdef CONFIG_USB_PATCH_ON_RTK
+int RTK_usb_unbind_device(struct device *dev)
+{
+	int ret = 0;
+	ret = usb_unbind_device(dev);
+	return ret;
+}
+#if defined(MY_ABC_HERE)
+EXPORT_SYMBOL(RTK_usb_unbind_device);
+#endif /* MY_ABC_HERE */
+#endif // CONFIG_USB_PATCH_ON_RTK
+
+#endif /* MY_ABC_HERE */
 /* called from driver core with dev locked */
 static int usb_probe_interface(struct device *dev)
 {
@@ -858,10 +909,37 @@ bool usb_driver_applicable(struct usb_device *udev,
 
 static int usb_device_match(struct device *dev, struct device_driver *drv)
 {
+#ifdef MY_ABC_HERE
+	extern int gSynoForbidUsb;
+	u16 vendor_id = 0, product_id = 0;
+	static unsigned long last_jiffies = INITIAL_JIFFIES;
+#endif /* MY_ABC_HERE */
+
 	/* devices and interfaces are handled separately */
 	if (is_usb_device(dev)) {
 		struct usb_device *udev;
 		struct usb_device_driver *udrv;
+
+#ifdef MY_ABC_HERE
+		if (gSynoForbidUsb) {
+			udev = to_usb_device(dev);
+			vendor_id = le16_to_cpu(udev->descriptor.idVendor);
+			product_id = le16_to_cpu(udev->descriptor.idProduct);
+			if (udev->parent && USB_CLASS_HUB != udev->descriptor.bDeviceClass && !IS_SYNO_FLASH(vendor_id, product_id)) {
+				dev_err(&udev->dev, "USB device idVendor=%04x idProduct=%04x manufacturer=%s product=%s is prohibited!\n",
+						vendor_id, product_id, udev->manufacturer, udev->product);
+				if (time_after(jiffies, last_jiffies + msecs_to_jiffies(3000))) {
+					if (NULL == func_synobios_event_handler) {
+						dev_err(&udev->dev, "%s: Can't reference to function 'func_synobios_event_handler'\n",__func__);
+					} else {
+						func_synobios_event_handler(SYNO_EVENT_USB_PROHIBIT, 0);
+					}
+					last_jiffies = jiffies;
+				}
+				return 0;
+			}
+		}
+#endif /* MY_ABC_HERE */
 
 		/* interface drivers never match devices */
 		if (!is_usb_device_driver(drv))
@@ -991,6 +1069,9 @@ int usb_register_device_driver(struct usb_device_driver *new_udriver,
 	new_udriver->drvwrap.driver.remove = usb_unbind_device;
 	new_udriver->drvwrap.driver.owner = owner;
 	new_udriver->drvwrap.driver.dev_groups = new_udriver->dev_groups;
+#ifdef MY_DEF_HERE
+	new_udriver->drvwrap.driver.shutdown = syno_usb_shutdown_device;
+#endif /* MY_DEF_HERE */
 
 	retval = driver_register(&new_udriver->drvwrap.driver);
 

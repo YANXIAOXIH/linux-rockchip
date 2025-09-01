@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Sync File validation framework
@@ -12,6 +15,11 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/sync_file.h>
+#if defined(MY_ABC_HERE)
+#include <linux/miscdevice.h>
+#include <linux/init.h>
+#include <linux/module.h>
+#endif /* MY_ABC_HERE */
 
 #include "sync_debug.h"
 
@@ -413,6 +421,27 @@ const struct file_operations sw_sync_debugfs_fops = {
 	.compat_ioctl	= compat_ptr_ioctl,
 };
 
+#if defined(MY_ABC_HERE)
+static struct miscdevice sw_sync_dev = {
+    .minor  = MISC_DYNAMIC_MINOR,
+    .name   = "sw_sync",
+    .fops   = &sw_sync_debugfs_fops,
+};
+
+static int __init sw_sync_device_init(void)
+{
+    return misc_register(&sw_sync_dev);
+}
+
+static void __exit sw_sync_device_remove(void)
+{
+    misc_deregister(&sw_sync_dev);
+}
+
+module_init(sw_sync_device_init);
+module_exit(sw_sync_device_remove);
+#else /* MY_ABC_HERE */
+
 static struct miscdevice sw_sync_dev = {
 	.minor	= MISC_DYNAMIC_MINOR,
 	.name	= "sw_sync",
@@ -420,5 +449,5 @@ static struct miscdevice sw_sync_dev = {
 };
 
 module_misc_device(sw_sync_dev);
-
+#endif /* MY_ABC_HERE */
 MODULE_LICENSE("GPL v2");
