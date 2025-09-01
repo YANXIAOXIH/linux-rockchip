@@ -12,7 +12,7 @@
 #include <linux/string.h>
 
 /**
- * match_one: - Determines if a string matches a simple pattern
+ * match_one - Determines if a string matches a simple pattern
  * @s: the string to examine for presence of the pattern
  * @p: the string containing the pattern
  * @args: array of %MAX_OPT_ARGS &substring_t elements. Used to return match
@@ -90,7 +90,7 @@ static int match_one(char *s, const char *p, substring_t args[])
 }
 
 /**
- * match_token: - Find a token (and optional args) in a string
+ * match_token - Find a token (and optional args) in a string
  * @s: the string to examine for token/argument pairs
  * @table: match_table_t describing the set of allowed option tokens and the
  * arguments that may be associated with them. Must be terminated with a
@@ -115,7 +115,7 @@ int match_token(char *s, const match_table_t table, substring_t args[])
 EXPORT_SYMBOL(match_token);
 
 /**
- * match_number: scan a number in the given base from a substring_t
+ * match_number - scan a number in the given base from a substring_t
  * @s: substring to be scanned
  * @result: resulting integer on success
  * @base: base to use when converting string
@@ -148,7 +148,7 @@ static int match_number(substring_t *s, int *result, int base)
 }
 
 /**
- * match_u64int: scan a number in the given base from a substring_t
+ * match_u64int - scan a number in the given base from a substring_t
  * @s: substring to be scanned
  * @result: resulting u64 on success
  * @base: base to use when converting string
@@ -175,7 +175,7 @@ static int match_u64int(substring_t *s, u64 *result, int base)
 }
 
 /**
- * match_int: - scan a decimal representation of an integer from a substring_t
+ * match_int - scan a decimal representation of an integer from a substring_t
  * @s: substring_t to be scanned
  * @result: resulting integer on success
  *
@@ -189,8 +189,30 @@ int match_int(substring_t *s, int *result)
 }
 EXPORT_SYMBOL(match_int);
 
+/*
+ * match_uint - scan a decimal representation of an integer from a substring_t
+ * @s: substring_t to be scanned
+ * @result: resulting integer on success
+ *
+ * Description: Attempts to parse the &substring_t @s as a decimal integer. On
+ * success, sets @result to the integer represented by the string and returns 0.
+ * Returns -ENOMEM, -EINVAL, or -ERANGE on failure.
+ */
+int match_uint(substring_t *s, unsigned int *result)
+{
+	int err = -ENOMEM;
+	char *buf = match_strdup(s);
+
+	if (buf) {
+		err = kstrtouint(buf, 10, result);
+		kfree(buf);
+	}
+	return err;
+}
+EXPORT_SYMBOL(match_uint);
+
 /**
- * match_u64: - scan a decimal representation of a u64 from
+ * match_u64 - scan a decimal representation of a u64 from
  *                  a substring_t
  * @s: substring_t to be scanned
  * @result: resulting unsigned long long on success
@@ -207,7 +229,7 @@ int match_u64(substring_t *s, u64 *result)
 EXPORT_SYMBOL(match_u64);
 
 /**
- * match_octal: - scan an octal representation of an integer from a substring_t
+ * match_octal - scan an octal representation of an integer from a substring_t
  * @s: substring_t to be scanned
  * @result: resulting integer on success
  *
@@ -222,7 +244,7 @@ int match_octal(substring_t *s, int *result)
 EXPORT_SYMBOL(match_octal);
 
 /**
- * match_hex: - scan a hex representation of an integer from a substring_t
+ * match_hex - scan a hex representation of an integer from a substring_t
  * @s: substring_t to be scanned
  * @result: resulting integer on success
  *
@@ -237,7 +259,7 @@ int match_hex(substring_t *s, int *result)
 EXPORT_SYMBOL(match_hex);
 
 /**
- * match_wildcard: - parse if a string matches given wildcard pattern
+ * match_wildcard - parse if a string matches given wildcard pattern
  * @pattern: wildcard pattern
  * @str: the string to be parsed
  *
@@ -288,7 +310,7 @@ bool match_wildcard(const char *pattern, const char *str)
 EXPORT_SYMBOL(match_wildcard);
 
 /**
- * match_strlcpy: - Copy the characters from a substring_t to a sized buffer
+ * match_strlcpy - Copy the characters from a substring_t to a sized buffer
  * @dest: where to copy to
  * @src: &substring_t to copy
  * @size: size of destination buffer
@@ -311,7 +333,7 @@ size_t match_strlcpy(char *dest, const substring_t *src, size_t size)
 EXPORT_SYMBOL(match_strlcpy);
 
 /**
- * match_strdup: - allocate a new string with the contents of a substring_t
+ * match_strdup - allocate a new string with the contents of a substring_t
  * @s: &substring_t to copy
  *
  * Description: Allocates and returns a string filled with the contents of

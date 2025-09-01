@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright (C) 1994  Linus Torvalds
@@ -244,6 +247,14 @@ static void __init mds_select_mitigation(void)
 		mds_mitigation = MDS_MITIGATION_OFF;
 		return;
 	}
+#ifdef MY_DEF_HERE
+	if(cmdline_find_option_bool(boot_command_line, "SpectreAll_on") ||
+			cmdline_find_option_bool(boot_command_line, "MDS_on")) {
+		mds_mitigation = MDS_MITIGATION_FULL;
+	} else {
+		mds_mitigation = MDS_MITIGATION_OFF;
+	}
+#endif /* MY_DEF_HERE */
 
 	if (mds_mitigation == MDS_MITIGATION_FULL) {
 		if (!boot_cpu_has(X86_FEATURE_MD_CLEAR))
@@ -1334,8 +1345,19 @@ static enum spectre_v2_mitigation_cmd __init spectre_v2_parse_cmdline(void)
 		return SPECTRE_V2_CMD_NONE;
 
 	ret = cmdline_find_option(boot_command_line, "spectre_v2", arg, sizeof(arg));
+#ifdef MY_DEF_HERE
+	if (ret < 0) {
+		if (cmdline_find_option_bool(boot_command_line, "SpectreAll_on") ||
+			cmdline_find_option_bool(boot_command_line, "SpectreV2_on")) {
+			return SPECTRE_V2_CMD_AUTO;
+		} else {
+			return SPECTRE_V2_CMD_NONE;
+		}
+	}
+#else /* MY_DEF_HERE */
 	if (ret < 0)
 		return SPECTRE_V2_CMD_AUTO;
+#endif /* MY_DEF_HERE */
 
 	for (i = 0; i < ARRAY_SIZE(mitigation_options); i++) {
 		if (!match_option(arg, ret, mitigation_options[i].option))
@@ -1483,6 +1505,13 @@ static void __init spectre_v2_select_mitigation(void)
 {
 	enum spectre_v2_mitigation_cmd cmd = spectre_v2_parse_cmdline();
 	enum spectre_v2_mitigation mode = SPECTRE_V2_NONE;
+
+#ifdef MY_DEF_HERE
+	if (0 == cmdline_find_option_bool(boot_command_line, "SpectreAll_on") &&
+		0 == cmdline_find_option_bool(boot_command_line, "SpectreV2_on")) {
+		return;
+	}
+#endif /* MY_DEF_HERE */
 
 	/*
 	 * If the CPU is not affected and the command line mode is NONE or AUTO

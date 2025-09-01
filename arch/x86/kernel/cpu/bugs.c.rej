@@ -1,0 +1,19 @@
+--- arch/x86/kernel/cpu/bugs.c	2025-08-31 16:09:10.395204474 +0800
++++ arch/x86/kernel/cpu/bugs.c	2025-08-31 14:58:45.493337855 +0800
+@@ -81,6 +84,16 @@
+ 
+ void __init check_bugs(void)
+ {
++#ifdef MY_DEF_HERE
++	if (cmdline_find_option_bool(boot_command_line, "SpectreAll_on") ||
++		cmdline_find_option_bool(boot_command_line, "SpectreV2_on") ||
++		cmdline_find_option_bool(boot_command_line, "SSBD_on") ||
++		cmdline_find_option_bool(boot_command_line, "MDS_on") ||
++		cmdline_find_option_bool(boot_command_line, "KPTI_on")) {
++		cpu_mitigations_auto_set();
++	}
++#endif /* MY_DEF_HERE */
++
+ 	identify_boot_cpu();
+ 
+ 	/*

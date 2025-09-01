@@ -460,7 +460,7 @@ config HAVE_ARCH_AUDITSYSCALL
 
 config AUDITSYSCALL
 	def_bool y
-	depends on AUDIT && HAVE_ARCH_AUDITSYSCALL
+	depends on AUDIT && HAVE_ARCH_AUDITSYSCALL && !SYNO_DISABLE_AUDITSYSCALL
 	select FSNOTIFY
 
 source "kernel/irq/Kconfig"
@@ -2123,6 +2123,8 @@ config TRACEPOINTS
 endmenu		# General setup
 
 source "arch/Kconfig"
+
+source "synology/synoconfigs/Kconfig"
 
 config RT_MUTEXES
 	bool

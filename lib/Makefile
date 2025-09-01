@@ -286,6 +286,8 @@ obj-$(CONFIG_ASN1) += asn1_decoder.o
 
 obj-$(CONFIG_FONT_SUPPORT) += fonts/
 
+obj-$(CONFIG_SYNO_LIBS) += synolib/
+
 hostprogs	:= gen_crc32table
 hostprogs	+= gen_crc64table
 clean-files	:= crc32table.h
