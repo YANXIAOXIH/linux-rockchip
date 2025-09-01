@@ -125,6 +125,15 @@ EXPORT_SYMBOL_GPL(mmio_stale_data_clear);
 
 void __init cpu_select_mitigations(void)
 {
+#ifdef MY_DEF_HERE
+	if (cmdline_find_option_bool(boot_command_line, "SpectreAll_on") ||
+		cmdline_find_option_bool(boot_command_line, "SpectreV2_on") ||
+		cmdline_find_option_bool(boot_command_line, "SSBD_on") ||
+		cmdline_find_option_bool(boot_command_line, "MDS_on") ||
+		cmdline_find_option_bool(boot_command_line, "KPTI_on")) {
+		cpu_mitigations_auto_set();
+	}
+#endif /* MY_DEF_HERE */
 	/*
 	 * Read the SPEC_CTRL MSR to account for reserved bits which may
 	 * have unknown values. AMD64_LS_CFG MSR is cached in the early AMD

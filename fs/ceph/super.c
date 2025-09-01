@@ -27,6 +27,10 @@
 #include <linux/ceph/auth.h>
 #include <linux/ceph/debugfs.h>
 
+#ifdef CONFIG_SYNO_CEPH_WINACL
+#include <linux/syno_acl.h>
+#endif /* CONFIG_SYNO_CEPH_WINACL */
+
 static DEFINE_SPINLOCK(ceph_fsc_lock);
 static LIST_HEAD(ceph_fsc_list);
 
@@ -159,6 +163,9 @@ enum {
 	Opt_quotadf,
 	Opt_copyfrom,
 	Opt_wsync,
+#ifdef CONFIG_SYNO_CEPH_WINACL
+	Opt_synoacl,
+#endif /* CONFIG_SYNO_CEPH_WINACL */
 };
 
 enum ceph_recover_session_mode {
@@ -199,6 +206,9 @@ static const struct fs_parameter_spec ceph_mount_parameters[] = {
 	fsparam_string	("source",			Opt_source),
 	fsparam_u32	("wsize",			Opt_wsize),
 	fsparam_flag_no	("wsync",			Opt_wsync),
+#ifdef CONFIG_SYNO_CEPH_WINACL
+	fsparam_flag_no	(SYNO_ACL_MNT_OPT,		Opt_synoacl),
+#endif /* CONFIG_SYNO_CEPH_WINACL */
 	{}
 };
 
@@ -455,6 +465,14 @@ static int ceph_parse_mount_param(struct fs_context *fc,
 		else
 			fsopt->flags |= CEPH_MOUNT_OPT_ASYNC_DIROPS;
 		break;
+#ifdef CONFIG_SYNO_CEPH_WINACL
+	case Opt_synoacl:
+		if (!result.negated)
+			fsopt->flags |= CEPH_MOUNT_OPT_WINACL;
+		else
+			fsopt->flags &= ~CEPH_MOUNT_OPT_WINACL;
+		break;
+#endif /* CONFIG_SYNO_CEPH_WINACL */
 	default:
 		BUG();
 	}
@@ -569,6 +587,10 @@ static int ceph_show_options(struct seq_file *m, struct dentry *root)
 		seq_puts(m, ",noacl");
 #endif
 
+#ifdef CONFIG_SYNO_CEPH_WINACL
+	if (root->d_sb->s_flags & SB_SYNOACL)
+		seq_puts(m, ",synoacl");
+#endif /* CONFIG_SYNO_CEPH_WINACL */
 	if ((fsopt->flags & CEPH_MOUNT_OPT_NOCOPYFROM) == 0)
 		seq_puts(m, ",copyfrom");
 
@@ -578,8 +600,8 @@ static int ceph_show_options(struct seq_file *m, struct dentry *root)
 	if (fsopt->flags & CEPH_MOUNT_OPT_CLEANRECOVER)
 		seq_show_option(m, "recover_session", "clean");
 
-	if (fsopt->flags & CEPH_MOUNT_OPT_ASYNC_DIROPS)
-		seq_puts(m, ",nowsync");
+	if (!(fsopt->flags & CEPH_MOUNT_OPT_ASYNC_DIROPS))
+		seq_puts(m, ",wsync");
 
 	if (fsopt->wsize != CEPH_MAX_WRITE_SIZE)
 		seq_printf(m, ",wsize=%u", fsopt->wsize);
@@ -832,6 +854,13 @@ static void destroy_caches(void)
 	ceph_fscache_unregister();
 }
 
+static void __ceph_umount_begin(struct ceph_fs_client *fsc)
+{
+	ceph_osdc_abort_requests(&fsc->client->osdc, -EIO);
+	ceph_mdsc_force_umount(fsc->mdsc);
+	fsc->filp_gen++; // invalidate open files
+}
+
 /*
  * ceph_umount_begin - initiate forced umount.  Tear down the
  * mount, skipping steps that may hang while waiting for server(s).
@@ -844,9 +873,7 @@ static void ceph_umount_begin(struct super_block *sb)
 	if (!fsc)
 		return;
 	fsc->mount_state = CEPH_MOUNT_SHUTDOWN;
-	ceph_osdc_abort_requests(&fsc->client->osdc, -EIO);
-	ceph_mdsc_force_umount(fsc->mdsc);
-	fsc->filp_gen++; // invalidate open files
+	__ceph_umount_begin(fsc);
 }
 
 static const struct super_operations ceph_super_ops = {
@@ -938,6 +965,17 @@ static struct dentry *ceph_real_mount(struct ceph_fs_client *fsc,
 			if (err < 0)
 				goto out;
 		}
+
+#ifdef CONFIG_SYNO_CEPH_WINACL
+		if (fsc->mount_options->flags & CEPH_MOUNT_OPT_WINACL) {
+			if (!syno_acl_module_get()) {
+				fsc->sb->s_flags &= ~SB_SYNOACL;
+				ceph_clear_mount_opt(fsc, WINACL);
+			} else {
+				fsc->sb->s_flags |= SB_SYNOACL;
+			}
+		}
+#endif /* CONFIG_SYNO_CEPH_WINACL */
 
 		dout("mount opening path '%s'\n", path);
 
@@ -1151,6 +1189,20 @@ static int ceph_reconfigure_fc(struct fs_context *fc)
 	else
 		ceph_clear_mount_opt(fsc, ASYNC_DIROPS);
 
+#ifdef CONFIG_SYNO_CEPH_WINACL
+	if (fsopt->flags & CEPH_MOUNT_OPT_WINACL) {
+		if (!ceph_test_mount_opt(fsc, WINACL) && syno_acl_module_get()) {
+			fc->root->d_sb->s_flags |= SB_SYNOACL;
+			ceph_set_mount_opt(fsc, WINACL);
+		}
+	} else {
+		if (ceph_test_mount_opt(fsc, WINACL)) {
+			syno_acl_module_put();
+			fc->root->d_sb->s_flags &= ~SB_SYNOACL;
+			ceph_clear_mount_opt(fsc, WINACL);
+		}
+	}
+#endif /* CONFIG_SYNO_CEPH_WINACL */
 	sync_filesystem(fc->root->d_sb);
 	return 0;
 }
@@ -1232,6 +1284,11 @@ static void ceph_kill_sb(struct super_block *s)
 
 	fsc->mdsc->stopping = CEPH_MDSC_STOPPING_FLUSHED;
 
+#ifdef CONFIG_SYNO_CEPH_WINACL
+	if (s->s_flags & SB_SYNOACL)
+		syno_acl_module_put();
+#endif /* CONFIG_SYNO_CEPH_WINACL */
+
 	kill_anon_super(s);
 
 	fsc->client->extra_mon_dispatch = NULL;
@@ -1256,7 +1313,8 @@ int ceph_force_reconnect(struct super_block *sb)
 	struct ceph_fs_client *fsc = ceph_sb_to_client(sb);
 	int err = 0;
 
-	ceph_umount_begin(sb);
+	fsc->mount_state = CEPH_MOUNT_RECOVER;
+	__ceph_umount_begin(fsc);
 
 	/* Make sure all page caches get invalidated.
 	 * see remove_session_caps_cb() */

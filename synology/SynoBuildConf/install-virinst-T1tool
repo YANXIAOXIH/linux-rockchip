@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# shellcheck disable=SC2154
+if [ -e "${KernelDir}/drivers/cpufreq/acpi-cpufreq.ko" ]; then
+	install -Dm644 "${KernelDir}/drivers/cpufreq/acpi-cpufreq.ko" "${TmpInstDir}/lib/modules/acpi-cpufreq.ko"
+fi
+
+if [ -e "${KernelDir}/drivers/cpufreq/cpufreq_performance.ko" ]; then
+	install -Dm644 "${KernelDir}/drivers/cpufreq/cpufreq_performance.ko" "${TmpInstDir}/lib/modules/cpufreq_performance.ko"
+fi
+
+if [ -e "${KernelDir}/drivers/cpufreq/cpufreq_powersave.ko" ]; then
+	install -Dm644 "${KernelDir}/drivers/cpufreq/cpufreq_powersave.ko" "${TmpInstDir}/lib/modules/cpufreq_powersave.ko"
+fi
+
+exit 0

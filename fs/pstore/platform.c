@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Persistent Storage - platform driver interface parts.
@@ -392,6 +395,9 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 	const char	*why;
 	unsigned int	part = 1;
 	int		ret;
+#ifdef MY_ABC_HERE
+	struct timespec64 boot_time;
+#endif /* MY_ABC_HERE */
 
 	why = kmsg_dump_reason_str(reason);
 
@@ -409,6 +415,11 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 	}
 
 	oopscount++;
+
+#ifdef MY_ABC_HERE
+	getboottime64(&boot_time);
+#endif /* MY_ABC_HERE */
+
 	while (total < kmsg_bytes) {
 		char *dst;
 		size_t dst_size;
@@ -433,8 +444,13 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 		}
 
 		/* Write dump header. */
+#ifdef MY_ABC_HERE
+		header_size = snprintf(dst, dst_size, "%s#%d Part%u, btime %d\n", why,
+				 oopscount, part, (int)boot_time.tv_sec);
+#else /* MY_ABC_HERE */
 		header_size = snprintf(dst, dst_size, "%s#%d Part%u\n", why,
 				 oopscount, part);
+#endif /* MY_ABC_HERE */
 		dst_size -= header_size;
 
 		/* Write dump contents. */
@@ -455,6 +471,10 @@ static void pstore_dump(struct kmsg_dumper *dumper,
 								  dump_size);
 			}
 		} else {
+#ifdef MY_ABC_HERE
+			header_size = sprintf(dst, "%s#%d Part%u, btime %d\n", why,
+					 oopscount, part, (int)boot_time.tv_sec);
+#endif /* MY_ABC_HERE */
 			record.size = header_size + dump_size;
 		}
 

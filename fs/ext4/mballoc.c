@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2003-2006, Cluster File Systems, Inc, info@clusterfs.com
@@ -3118,6 +3121,21 @@ static inline int ext4_issue_discard(struct super_block *sb,
 		return sb_issue_discard(sb, discard_block, count, GFP_NOFS, 0);
 }
 
+#ifdef MY_ABC_HERE
+static inline int ext4_hint_unused(struct super_block *sb,
+		ext4_group_t block_group, ext4_grpblk_t cluster, int count)
+{
+	ext4_fsblk_t hint_block;
+
+	hint_block = (EXT4_C2B(EXT4_SB(sb), cluster) +
+			ext4_group_first_block_no(sb, block_group));
+	count = EXT4_C2B(EXT4_SB(sb), count);
+	trace_ext4_unused_hint_blocks(sb,
+			(unsigned long long) hint_block, count);
+	return sb_hint_unused(sb, hint_block, count, GFP_NOFS);
+}
+#endif /* MY_ABC_HERE */
+
 static void ext4_free_data_in_buddy(struct super_block *sb,
 				    struct ext4_free_data *entry)
 {
@@ -5773,9 +5791,10 @@ int ext4_group_add_blocks(handle_t *handle, struct super_block *sb,
 	}
 
 	if (!ext4_sb_block_valid(sb, NULL, block, count)) {
-		ext4_error(sb, "Adding blocks in system zones - "
-			   "Block = %llu, count = %lu",
-			   block, count);
+		if (printk_ratelimit())
+				ext4_error(sb, "Adding blocks in system zones - "
+					"Block = %llu, count = %lu",
+					block, count);
 		err = -EINVAL;
 		goto error_return;
 	}
@@ -5864,7 +5883,11 @@ error_return:
  * be called with under the group lock.
  */
 static int ext4_trim_extent(struct super_block *sb,
-		int start, int count, struct ext4_buddy *e4b)
+		int start, int count, struct ext4_buddy *e4b
+#ifdef MY_ABC_HERE
+			    , enum trim_act act
+#endif /* MY_ABC_HERE */
+			    )
 __releases(bitlock)
 __acquires(bitlock)
 {
@@ -5886,7 +5909,16 @@ __acquires(bitlock)
 	 */
 	mb_mark_used(e4b, &ex);
 	ext4_unlock_group(sb, group);
+
+#ifdef MY_ABC_HERE
+	if (act == TRIM_SEND_HINT)
+		ret = ext4_hint_unused(sb, group, start, count);
+	else
+		ret = ext4_issue_discard(sb, group, start, count, NULL);
+#else /* MY_ABC_HERE */
 	ret = ext4_issue_discard(sb, group, start, count, NULL);
+#endif /* MY_ABC_HERE */
+
 	ext4_lock_group(sb, group);
 	mb_free_blocks(NULL, e4b, start, ex.fe_len);
 	return ret;
@@ -5978,7 +6010,11 @@ static int ext4_try_to_trim_range(struct super_block *sb,
 static ext4_grpblk_t
 ext4_trim_all_free(struct super_block *sb, ext4_group_t group,
 		   ext4_grpblk_t start, ext4_grpblk_t max,
-		   ext4_grpblk_t minblocks)
+		   ext4_grpblk_t minblocks
+#ifdef MY_ABC_HERE
+		   , enum trim_act act
+#endif /* MY_ABC_HERE */
+		   )
 {
 	struct ext4_buddy e4b;
 	int ret;
@@ -5994,10 +6030,18 @@ ext4_trim_all_free(struct super_block *sb, ext4_group_t group,
 
 	ext4_lock_group(sb, group);
 
-	if (!EXT4_MB_GRP_WAS_TRIMMED(e4b.bd_info) ||
+	if ((!EXT4_MB_GRP_WAS_TRIMMED(e4b.bd_info) ||
 	    minblocks < EXT4_SB(sb)->s_last_trim_minblks)
-		ret = ext4_try_to_trim_range(sb, &e4b, start, max, minblocks);
-	else
+#ifdef MY_ABC_HERE
+		|| act == TRIM_SEND_HINT 
+#endif
+		) {
+		ret = ext4_try_to_trim_range(sb, &e4b, start, max, minblocks
+#ifdef MY_ABC_HERE
+                                 , act // 传递 act 参数
+#endif
+                                 );
+	} else {
 		ret = 0;
 
 	ext4_unlock_group(sb, group);
@@ -6021,7 +6065,11 @@ ext4_trim_all_free(struct super_block *sb, ext4_group_t group,
  * start to start+len. For each such a group ext4_trim_all_free function
  * is invoked to trim all free space.
  */
-int ext4_trim_fs(struct super_block *sb, struct fstrim_range *range)
+int ext4_trim_fs(struct super_block *sb, struct fstrim_range *range
+#ifdef MY_ABC_HERE
+		, enum trim_act act
+#endif /* MY_ABC_HERE */
+		)
 {
 	struct request_queue *q = bdev_get_queue(sb->s_bdev);
 	struct ext4_group_info *grp;
@@ -6088,7 +6136,11 @@ int ext4_trim_fs(struct super_block *sb, struct fstrim_range *range)
 			end = last_cluster;
 		if (grp->bb_free >= minlen) {
 			cnt = ext4_trim_all_free(sb, group, first_cluster,
-						 end, minlen);
+						 end, minlen
+#ifdef MY_ABC_HERE
+						 , act
+#endif /* MY_ABC_HERE */
+						 );
 			if (cnt < 0) {
 				ret = cnt;
 				break;
@@ -6102,6 +6154,12 @@ int ext4_trim_fs(struct super_block *sb, struct fstrim_range *range)
 		 */
 		first_cluster = 0;
 	}
+
+#ifdef MY_ABC_HERE
+        /* Do not set s_last_trim_minblks */
+	if (act == TRIM_SEND_HINT)
+		goto out;
+#endif /* MY_ABC_HERE */
 
 	if (!ret)
 		EXT4_SB(sb)->s_last_trim_minblks = minlen;

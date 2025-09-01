@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /*
  *   fs/cifs/smb2pdu.c
  *
@@ -96,7 +99,11 @@ int smb3_encryption_required(const struct cifs_tcon *tcon)
 	return 0;
 }
 
+#ifdef MY_ABC_HERE
+void
+#else /* MY_ABC_HERE */
 static void
+#endif /* MY_ABC_HERE */
 smb2_hdr_assemble(struct smb2_sync_hdr *shdr, __le16 smb2_cmd,
 		  const struct cifs_tcon *tcon,
 		  struct TCP_Server_Info *server)
@@ -160,6 +167,9 @@ smb2_reconnect(__le16 smb2_command, struct cifs_tcon *tcon,
 	struct nls_table *nls_codepage;
 	struct cifs_ses *ses;
 	int retries;
+#ifdef MY_ABC_HERE
+	u16 origin_dialect; /* dialect index that server chose */
+#endif /* MY_ABC_HERE */
 
 	/*
 	 * SMB2s NegProt, SessSetup, Logoff do not have tcon yet so
@@ -242,16 +252,34 @@ smb2_reconnect(__le16 smb2_command, struct cifs_tcon *tcon,
 		retries = server->nr_targets;
 	}
 
+#ifdef MY_ABC_HERE
+	if (SMB20_PROT_ID > server->dialect) {
+		cifs_dbg(FYI, "(%s) origin_dialect=0x%x, server->dialect=0x%x\n", __func__, origin_dialect, server->dialect);
+		return -EAGAIN;
+	}
+	origin_dialect = server->dialect;
+#endif /* MY_ABC_HERE */
 	if (!tcon->ses->need_reconnect && !tcon->need_reconnect)
 		return 0;
 
+#ifdef MY_ABC_HERE
+	nls_codepage = load_nls("utf8");
+#else /* MY_ABC_HERE */
 	nls_codepage = load_nls_default();
+#endif /* MY_ABC_HERE */
 
 	/*
 	 * need to prevent multiple threads trying to simultaneously reconnect
 	 * the same SMB session
 	 */
+#ifdef MY_ABC_HERE
+	if (!mutex_trylock(&tcon->ses->session_mutex)) {
+		rc = -EINPROGRESS;
+		goto out;
+	}
+#else /* MY_ABC_HERE */
 	mutex_lock(&tcon->ses->session_mutex);
+#endif /* MY_ABC_HERE */
 
 	/*
 	 * Recheck after acquire mutex. If another thread is negotiating
@@ -315,6 +343,13 @@ smb2_reconnect(__le16 smb2_command, struct cifs_tcon *tcon,
 		mod_delayed_work(cifsiod_wq, &server->reconnect, 0);
 
 	atomic_inc(&tconInfoReconnectCount);
+#ifdef MY_ABC_HERE
+	if (server->dialect != origin_dialect ||
+	    SMB20_PROT_ID > server->dialect) {
+		cifs_dbg(FYI, "(%s) SMB2 reconnect dialect not match! origin=0x%x, current=0x%x\n", __func__, origin_dialect, server->dialect);
+		rc = -EAGAIN;
+	}
+#endif /* MY_ABC_HERE */
 out:
 	/*
 	 * Check if handle based operation so we know whether we can continue
@@ -478,7 +513,11 @@ build_encrypt_ctxt(struct smb2_encryption_neg_context *pneg_ctxt)
 static unsigned int
 build_netname_ctxt(struct smb2_netname_neg_context *pneg_ctxt, char *hostname)
 {
+#ifdef MY_ABC_HERE
+	struct nls_table *cp = load_nls("utf8");
+#else /* MY_ABC_HERE */
 	struct nls_table *cp = load_nls_default();
+#endif /* MY_ABC_HERE */
 
 	pneg_ctxt->ContextType = SMB2_NETNAME_NEGOTIATE_CONTEXT_ID;
 
@@ -513,7 +552,11 @@ build_posix_ctxt(struct smb2_posix_neg_context *pneg_ctxt)
 	pneg_ctxt->Name[15] = 0x7C;
 }
 
+#ifdef MY_ABC_HERE
+void
+#else /* MY_ABC_HERE */
 static void
+#endif /* MY_ABC_HERE */
 assemble_neg_contexts(struct smb2_negotiate_req *req,
 		      struct TCP_Server_Info *server, unsigned int *total_len)
 {
@@ -652,9 +695,15 @@ static int decode_encrypt_ctx(struct TCP_Server_Info *server,
 	return 0;
 }
 
+#ifdef MY_ABC_HERE
+int smb311_decode_neg_context(struct smb2_negotiate_rsp *rsp,
+				     struct TCP_Server_Info *server,
+				     unsigned int len_of_smb)
+#else /* MY_ABC_HERE */
 static int smb311_decode_neg_context(struct smb2_negotiate_rsp *rsp,
 				     struct TCP_Server_Info *server,
 				     unsigned int len_of_smb)
+#endif /* MY_ABC_HERE */
 {
 	struct smb2_neg_context *pctx;
 	unsigned int offset = le32_to_cpu(rsp->NegotiateContextOffset);
@@ -2463,26 +2512,40 @@ alloc_path_with_tree_prefix(__le16 **out_path, int *out_size, int *out_len,
 
 	path_len = UniStrnlen((wchar_t *)path, PATH_MAX);
 
-	/*
-	 * make room for one path separator between the treename and
-	 * path
-	 */
-	*out_len = treename_len + 1 + path_len;
+	/* make room for one path separator only if @path isn't empty */
+	*out_len = treename_len + (path[0] ? 1 : 0) + path_len;
 
 	/*
-	 * final path needs to be null-terminated UTF16 with a
-	 * size aligned to 8
+	 * final path needs to be 8-byte aligned as specified in
+	 * MS-SMB2 2.2.13 SMB2 CREATE Request.
 	 */
-
-	*out_size = roundup((*out_len+1)*2, 8);
-	*out_path = kzalloc(*out_size, GFP_KERNEL);
+	*out_size = roundup(*out_len * sizeof(__le16), 8);
+	*out_path = kzalloc(*out_size + sizeof(__le16) /* null */, GFP_KERNEL);
 	if (!*out_path)
 		return -ENOMEM;
 
+#ifdef MY_ABC_HERE
+	cp = load_nls("utf8");
+#else /* MY_ABC_HERE */
 	cp = load_nls_default();
+#endif /* MY_ABC_HERE */
 	cifs_strtoUTF16(*out_path, treename, treename_len, cp);
-	UniStrcat(*out_path, sep);
-	UniStrcat(*out_path, path);
+
+	/* Do not append the separator if the path is empty */
+	if (path[0] != cpu_to_le16(0x0000)) {
+		UniStrcat(*out_path, sep);
+		UniStrcat(*out_path, path);
+	}
+#ifdef MY_ABC_HERE
+	/**
+	 * we need to calculate length after convert to UTF16
+	 * because source utf8 path length is differenct from UTF16
+	 *
+	 * @see DSM#156591
+	 */
+	*out_len = UniStrnlen((wchar_t *)*out_path, PATH_MAX);
+#endif /* MY_ABC_HERE */
+
 	unload_nls(cp);
 
 	return 0;
@@ -3722,6 +3785,13 @@ SMB2_echo(struct TCP_Server_Info *server)
 
 	cifs_dbg(FYI, "In echo request\n");
 
+#ifdef MY_ABC_HERE
+	if (server && CifsGood != server->tcpStatus) {
+		cifs_dbg(FYI, "tcpStatus not Good (%d); Don't send echo\n",
+				server->tcpStatus);
+		return rc;
+	}
+#endif /* MY_ABC_HERE */
 	if (server->tcpStatus == CifsNeedNegotiate) {
 		/* No need to send echo on newly established connections */
 		mod_delayed_work(cifsiod_wq, &server->reconnect, 0);
@@ -3782,7 +3852,12 @@ int
 SMB2_flush(const unsigned int xid, struct cifs_tcon *tcon, u64 persistent_fid,
 	   u64 volatile_fid)
 {
+#ifdef MY_ABC_HERE
+	// CID 413508: Dereference before NULL check
+	struct cifs_ses *ses = tcon ? tcon->ses : NULL;
+#else /* MY_ABC_HERE */
 	struct cifs_ses *ses = tcon->ses;
+#endif /* MY_ABC_HERE */
 	struct smb_rqst rqst;
 	struct kvec iov[1];
 	struct kvec rsp_iov = {NULL, 0};

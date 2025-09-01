@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * kernel/stacktrace.c
@@ -99,6 +102,9 @@ static bool stack_trace_consume_entry_nosched(void *cookie, unsigned long addr)
 		return true;
 	return stack_trace_consume_entry(cookie, addr);
 }
+#ifdef MY_ABC_HERE
+//EXPORT_SYMBOL_GPL(stack_trace_save_tsk);
+#endif /* MY_ABC_HERE */
 
 /**
  * stack_trace_save - Save a stack trace into a storage array

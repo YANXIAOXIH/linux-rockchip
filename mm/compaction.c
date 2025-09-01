@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * linux/mm/compaction.c
@@ -1908,7 +1911,27 @@ static inline bool is_via_compact_memory(int order)
 
 static bool kswapd_is_running(pg_data_t *pgdat)
 {
+#ifdef MY_ABC_HERE
+	int hid;
+	int nr_threads = kswapd_threads_current;
+	struct task_struct *kswapd;
+
+	/**
+	 * Avoid the race with updating, and assume that kswapd will run
+	 * after kswapds threads updated.
+	 */
+	if (test_bit(PGDAT_SYNO_UPDATING_KSWAPDS, &pgdat->flags))
+		return true;
+
+	for (hid = 0; hid < nr_threads; hid++) {
+		kswapd = pgdat->kswapd[hid];
+		if (kswapd && kswapd->state == TASK_RUNNING)
+			return true;
+	}
+	return false;
+#else /* MY_ABC_HERE */
 	return pgdat->kswapd && (pgdat->kswapd->state == TASK_RUNNING);
+#endif /* MY_ABC_HERE */
 }
 
 /*
@@ -2638,7 +2661,11 @@ static void compact_node(int nid)
 }
 
 /* Compact all nodes in the system */
+#ifdef MY_ABC_HERE
+void compact_nodes(void)
+#else /* MY_ABC_HERE */
 static void compact_nodes(void)
+#endif /* MY_ABC_HERE */
 {
 	int nid;
 
@@ -2648,6 +2675,9 @@ static void compact_nodes(void)
 	for_each_online_node(nid)
 		compact_node(nid);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL(compact_nodes);
+#endif /* MY_ABC_HERE */
 
 /* The written value is actually unused, all memory is compacted */
 int sysctl_compact_memory;

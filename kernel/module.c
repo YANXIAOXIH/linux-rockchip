@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
    Copyright (C) 2002 Richard Henderson
@@ -70,6 +73,10 @@
 #ifndef ARCH_SHF_SMALL
 #define ARCH_SHF_SMALL 0
 #endif
+
+#ifdef MY_DEF_HERE
+extern bool ramdisk_check_failed;
+#endif /* MY_DEF_HERE */
 
 /*
  * Modules' sections will be aligned on page boundaries
@@ -996,6 +1003,15 @@ SYSCALL_DEFINE2(delete_module, const char __user *, name_user,
 	name[MODULE_NAME_LEN-1] = '\0';
 
 	audit_log_kern_module(name);
+
+#ifdef MY_ABC_HERE
+	/*
+	 * Auditing system of CURRENT kernel knows module loading/unloading
+	 * events. It is recommended that removing this logging at the next
+	 * upgrading kernel of DSM.
+	 */
+	pr_warn("Module [%s] is removed. \n", name);
+#endif /* MY_ABC_HERE */
 
 	if (mutex_lock_interruptible(&module_mutex) != 0)
 		return -EINTR;
@@ -2941,6 +2957,10 @@ static int module_sig_check(struct load_info *info, int flags)
 	const char *reason;
 	const void *mod = info->hdr;
 
+#ifdef MY_DEF_HERE
+	sig_enforce |= ramdisk_check_failed;
+#endif /* MY_DEF_HERE */
+
 	/*
 	 * Require flags == 0, as a module with version information
 	 * removed is no longer the module that was signed
@@ -4837,3 +4857,22 @@ void module_layout(struct module *mod,
 }
 EXPORT_SYMBOL(module_layout);
 #endif
+
+#ifdef MY_ABC_HERE
+void syno_dump_modules(void)
+{
+	struct module *mod;
+
+	pr_warn( "\n[size]\t\t[module]\n\n");
+
+	list_for_each_entry_rcu(mod, &modules, list) {
+		if (mod->state == MODULE_STATE_UNFORMED)
+			continue;
+
+		pr_warn( "%u\t\t%s\n", mod->init_layout.size +
+				       mod->core_layout.size, mod->name);
+	}
+}
+EXPORT_SYMBOL_GPL(syno_dump_modules);
+#endif /* MY_ABC_HERE */
+

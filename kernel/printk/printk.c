@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/kernel/printk.c
@@ -47,6 +50,9 @@
 #include <linux/sched/clock.h>
 #include <linux/sched/debug.h>
 #include <linux/sched/task_stack.h>
+#ifdef MY_DEF_HERE
+#include <linux/serial.h>
+#endif /* MY_DEF_HERE */
 
 #include <linux/uaccess.h>
 #include <asm/sections.h>
@@ -2717,6 +2723,29 @@ static int __init keep_bootcon_setup(char *str)
 
 early_param("keep_bootcon", keep_bootcon_setup);
 
+#ifdef MY_DEF_HERE
+static int syno_setup_console(struct console *newcon)
+{
+	int ret = -1;
+	short console_index = 0;
+	struct console *bcon = NULL;
+
+	if (0 == strcmp(newcon->name, "ttyS") && console_index == newcon->index) {
+		console_lock();
+		for_each_console(bcon) {
+			if ((bcon->flags & CON_BOOT) && bcon->deinit)
+				bcon->deinit();
+		}
+		ret = newcon->setup(newcon, NULL);
+		console_unlock();
+	} else {
+		ret = newcon->setup(newcon, NULL);
+	}
+
+	return ret;
+}
+#endif /* MY_DEF_HERE */
+
 /*
  * This is called by register_console() to try to match
  * the newly registered console with any of the ones selected
@@ -2774,6 +2803,17 @@ static int try_enable_new_console(struct console *newcon, bool user_specified)
 	return -ENOENT;
 }
 
+#ifdef MY_DEF_HERE
+static int syno_is_oob_console(struct console *newcon)
+{
+	int ret = 0;
+	if (0 == strcmp(newcon->name, "ttyS") && SYNO_OOB_TTY == newcon->index) {
+		ret = 1;
+	}
+	return ret;
+}
+#endif /* MY_DEF_HERE */
+
 /*
  * The console driver calls this routine during kernel initialization
  * to register the console printing procedure with printk() and to
@@ -2830,11 +2870,19 @@ void register_console(struct console *newcon)
 	 *	didn't select a console we take the first one
 	 *	that registers here.
 	 */
+#ifdef MY_DEF_HERE
+	if (!has_preferred_console && (!syno_is_oob_console(newcon))) {
+#else
 	if (!has_preferred_console) {
+#endif /* MY_DEF_HERE */
 		if (newcon->index < 0)
 			newcon->index = 0;
 		if (newcon->setup == NULL ||
+#ifdef MY_DEF_HERE
+		    syno_setup_console(newcon) == 0) {
+#else /* MY_DEF_HERE */
 		    newcon->setup(newcon, NULL) == 0) {
+#endif /* MY_DEF_HERE */
 			newcon->flags |= CON_ENABLED;
 			if (newcon->device) {
 				newcon->flags |= CON_CONSDEV;
@@ -2929,6 +2977,17 @@ void register_console(struct console *newcon)
 }
 EXPORT_SYMBOL(register_console);
 
+#ifdef MY_DEF_HERE
+static void __ref pci_console_unmap_memory(void __iomem *addr, u32 size)
+{
+	if (!addr || !size)
+		return;
+
+	else
+		early_iounmap(addr, size);
+}
+#endif /* MY_DEF_HERE */
+
 int unregister_console(struct console *console)
 {
 	struct console *con;
@@ -2975,6 +3034,11 @@ int unregister_console(struct console *console)
 	console->flags &= ~CON_ENABLED;
 	console_unlock();
 	console_sysfs_notify();
+#ifdef MY_DEF_HERE
+	if (console->pcimapaddress) {
+		pci_console_unmap_memory(console->pcimapaddress, console->pcimapsize);
+	}
+#endif /* MY_DEF_HERE */
 
 	if (console->exit)
 		res = console->exit(console);

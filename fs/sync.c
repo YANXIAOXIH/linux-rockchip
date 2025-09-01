@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * High-level sync()-related operations
@@ -10,6 +13,7 @@
 #include <linux/export.h>
 #include <linux/namei.h>
 #include <linux/sched/xacct.h>
+#include <linux/sched.h>
 #include <linux/writeback.h>
 #include <linux/syscalls.h>
 #include <linux/linkage.h>
@@ -75,6 +79,9 @@ static void sync_inodes_one_sb(struct super_block *sb, void *arg)
 	if (!sb_rdonly(sb))
 		sync_inodes_sb(sb);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(__sync_filesystem);
+#endif /* MY_ABC_HERE */
 
 static void sync_fs_one_sb(struct super_block *sb, void *arg)
 {

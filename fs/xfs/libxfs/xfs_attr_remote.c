@@ -137,7 +137,7 @@ __xfs_attr3_rmt_read_verify(
 	while (len > 0) {
 		if (check_crc &&
 		    !xfs_verify_cksum(ptr, blksize, XFS_ATTR3_RMT_CRC_OFF)) {
-			*failaddr = __this_address;
+			// *failaddr = __this_address;
 			return -EFSBADCRC;
 		}
 		*failaddr = xfs_attr3_rmt_verify(mp, bp, ptr, blksize, bno);

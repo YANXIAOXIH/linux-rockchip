@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2009 Oracle.  All rights reserved.
@@ -1018,10 +1021,17 @@ static int get_new_location(struct inode *reloc_inode, u64 *new_bytenr,
 	fi = btrfs_item_ptr(leaf, path->slots[0],
 			    struct btrfs_file_extent_item);
 
+#ifdef MY_ABC_HERE
+	WARN_ON_ONCE(btrfs_file_extent_other_encoding(leaf, fi));
+	BUG_ON(btrfs_file_extent_offset(leaf, fi) ||
+	       btrfs_file_extent_compression(leaf, fi) ||
+	       btrfs_file_extent_encryption(leaf, fi));
+#else
 	BUG_ON(btrfs_file_extent_offset(leaf, fi) ||
 	       btrfs_file_extent_compression(leaf, fi) ||
 	       btrfs_file_extent_encryption(leaf, fi) ||
 	       btrfs_file_extent_other_encoding(leaf, fi));
+#endif /* MY_ABC_HERE */
 
 	if (num_bytes != btrfs_file_extent_disk_num_bytes(leaf, fi)) {
 		ret = -EINVAL;
@@ -1059,6 +1069,9 @@ int replace_file_extents(struct btrfs_trans_handle *trans,
 	int ret = 0;
 	int first = 1;
 	int dirty = 0;
+#ifdef MY_ABC_HERE
+	int syno_usage;
+#endif /* MY_ABC_HERE */
 
 	if (rc->stage != UPDATE_DATA_PTRS)
 		return 0;
@@ -1133,12 +1146,23 @@ int replace_file_extents(struct btrfs_trans_handle *trans,
 		btrfs_set_file_extent_disk_bytenr(leaf, fi, new_bytenr);
 		dirty = 1;
 
+#ifdef MY_ABC_HERE
+		syno_usage = btrfs_syno_usage_ref_check(root, key.objectid, key.offset);
+#endif /* MY_ABC_HERE */
+
 		key.offset -= btrfs_file_extent_offset(leaf, fi);
 		btrfs_init_generic_ref(&ref, BTRFS_ADD_DELAYED_REF, new_bytenr,
 				       num_bytes, parent);
 		ref.real_root = root->root_key.objectid;
 		btrfs_init_data_ref(&ref, btrfs_header_owner(leaf),
-				    key.objectid, key.offset);
+				    key.objectid, key.offset
+#ifdef MY_ABC_HERE
+				    , syno_usage
+#endif /* MY_ABC_HERE */
+				    );
+#ifdef MY_ABC_HERE
+		ref.skip_qgroup = true;
+#endif /* MY_ABC_HERE */
 		ret = btrfs_inc_extent_ref(trans, &ref);
 		if (ret) {
 			btrfs_abort_transaction(trans, ret);
@@ -1149,7 +1173,14 @@ int replace_file_extents(struct btrfs_trans_handle *trans,
 				       num_bytes, parent);
 		ref.real_root = root->root_key.objectid;
 		btrfs_init_data_ref(&ref, btrfs_header_owner(leaf),
-				    key.objectid, key.offset);
+				    key.objectid, key.offset
+#ifdef MY_ABC_HERE
+				    , syno_usage
+#endif /* MY_ABC_HERE */
+				    );
+#ifdef MY_ABC_HERE
+		ref.skip_qgroup = true;
+#endif /* MY_ABC_HERE */
 		ret = btrfs_free_extent(trans, &ref);
 		if (ret) {
 			btrfs_abort_transaction(trans, ret);
@@ -3600,6 +3631,22 @@ int btrfs_relocate_block_group(struct btrfs_fs_info *fs_info, u64 group_start)
 	int ret;
 	int rw = 0;
 	int err = 0;
+
+#ifdef MY_ABC_HERE
+#else /* MY_ABC_HERE */
+	/*
+	 * This only gets set if we had a half-deleted snapshot on mount.  We
+	 * cannot allow relocation to start while we're still trying to clean up
+	 * these pending deletions.
+	 */
+	ret = wait_on_bit(&fs_info->flags, BTRFS_FS_UNFINISHED_DROPS, TASK_INTERRUPTIBLE);
+	if (ret)
+		return ret;
+
+	/* We may have been woken up by close_ctree, so bail if we're closing. */
+	if (btrfs_fs_closing(fs_info))
+		return -EINTR;
+#endif /* MY_ABC_HERE */
 
 	bg = btrfs_lookup_block_group(fs_info, group_start);
 	if (!bg)

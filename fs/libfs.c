@@ -1399,7 +1399,7 @@ static bool needs_casefold(const struct inode *dir)
  *
  * Return: 0 if names match, 1 if mismatch, or -ERRNO
  */
-static int generic_ci_d_compare(const struct dentry *dentry, unsigned int len,
+int generic_ci_d_compare(const struct dentry *dentry, unsigned int len,
 				const char *str, const struct qstr *name)
 {
 	const struct dentry *parent = READ_ONCE(dentry->d_parent);
@@ -1445,7 +1445,7 @@ fallback:
  *
  * Return: 0 if hash was successful or unchanged, and -EINVAL on error
  */
-static int generic_ci_d_hash(const struct dentry *dentry, struct qstr *str)
+int generic_ci_d_hash(const struct dentry *dentry, struct qstr *str)
 {
 	const struct inode *dir = READ_ONCE(dentry->d_inode);
 	struct super_block *sb = dentry->d_sb;
@@ -1459,6 +1459,7 @@ static int generic_ci_d_hash(const struct dentry *dentry, struct qstr *str)
 	if (ret < 0 && sb_has_strict_encoding(sb))
 		return -EINVAL;
 	return 0;
+
 }
 
 static const struct dentry_operations generic_ci_dentry_ops = {
@@ -1531,3 +1532,5 @@ void generic_set_encrypted_ci_d_ops(struct dentry *dentry)
 #endif
 }
 EXPORT_SYMBOL(generic_set_encrypted_ci_d_ops);
+EXPORT_SYMBOL(generic_ci_d_hash);
+EXPORT_SYMBOL(generic_ci_d_compare);

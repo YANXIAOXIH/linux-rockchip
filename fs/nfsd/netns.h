@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * per net namespace data structures for nfsd
@@ -43,7 +46,9 @@ struct nfsd_net {
 	time64_t boot_time;
 
 	struct dentry *nfsd_client_dir;
-
+#ifdef MY_ABC_HERE
+	struct dentry *nfsd_syno_client_dir;
+#endif /* MY_ABC_HERE */
 	/*
 	 * reclaim_str_hashtbl[] holds known client info from previous reset/reboot
 	 * used in reboot/reset lease grace period processing
@@ -173,6 +178,9 @@ struct nfsd_net {
 	struct shrinker		nfsd_reply_cache_shrinker;
 	/* utsname taken from the process that starts the server */
 	char			nfsd_name[UNX_MAXNODENAME+1];
+
+	/* Allow umount to wait for nfsd state cleanup */
+	struct completion nfsd_shutdown_complete;
 };
 
 /* Simple check to find out if a given net was properly initialized */
@@ -184,4 +192,9 @@ extern unsigned int nfsd_net_id;
 
 void nfsd_copy_boot_verifier(__be32 verf[2], struct nfsd_net *nn);
 void nfsd_reset_boot_verifier(struct nfsd_net *nn);
+
+#ifdef MY_ABC_HERE
+struct nfsd_net *syno_nfsd_net_get(void);
+#endif /* MY_ABC_HERE */
+
 #endif /* __NFSD_NETNS_H__ */

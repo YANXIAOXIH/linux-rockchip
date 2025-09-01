@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/kernel/fork.c
@@ -566,7 +569,11 @@ static __latent_entropy int dup_mmap(struct mm_struct *mm,
 			struct inode *inode = file_inode(file);
 			struct address_space *mapping = file->f_mapping;
 
+#ifdef MY_ABC_HERE
+			vma_get_file(tmp);
+#else
 			get_file(file);
+#endif /* MY_ABC_HERE */
 			if (tmp->vm_flags & VM_DENYWRITE)
 				put_write_access(inode);
 			i_mmap_lock_write(mapping);
@@ -2058,7 +2065,14 @@ static __latent_entropy struct task_struct *copy_process(
 	 */
 	retval = -EAGAIN;
 	if (data_race(nr_threads >= max_threads))
+#ifdef MY_ABC_HERE
+	{
+		pr_err_ratelimited("fork over limit, threads-max = %d", max_threads);
 		goto bad_fork_cleanup_count;
+	}
+#else /* MY_ABC_HERE */
+		goto bad_fork_cleanup_count;
+#endif /* MY_ABC_HERE */
 
 	delayacct_tsk_init(p);	/* Must remain after dup_task_struct() */
 	p->flags &= ~(PF_SUPERPRIV | PF_WQ_WORKER | PF_IDLE);
@@ -2095,6 +2109,10 @@ static __latent_entropy struct task_struct *copy_process(
 
 #ifdef CONFIG_PSI
 	p->psi_flags = 0;
+#endif
+
+#ifdef MY_ABC_HERE
+	p->workacct = NULL;
 #endif
 
 	task_io_accounting_init(&p->ioac);

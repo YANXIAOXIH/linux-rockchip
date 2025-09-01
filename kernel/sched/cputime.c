@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Simple CPU accounting cgroup controller
@@ -5,6 +8,10 @@
 #include <linux/cpufreq_times.h>
 #include "sched.h"
 #include <trace/hooks/sched.h>
+
+#ifdef MY_ABC_HERE
+#include <linux/workqueue.h>
+#endif /* MY_ABC_HERE */
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 
@@ -505,7 +512,15 @@ void account_process_tick(struct task_struct *p, int user_tick)
 	if (user_tick)
 		account_user_time(p, cputime);
 	else if ((p != this_rq()->idle) || (irq_count() != HARDIRQ_OFFSET))
+#ifdef MY_ABC_HERE
+	{
+#endif /* MY_ABC_HERE */
 		account_system_time(p, HARDIRQ_OFFSET, cputime);
+#ifdef MY_ABC_HERE
+		if (p->workacct)
+			account_workqueue_time(p, div_u64(cputime, NSEC_PER_USEC), GFP_NOWAIT);
+	}
+#endif /* MY_ABC_HERE */
 	else
 		account_idle_time(cputime);
 }

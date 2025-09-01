@@ -1,3 +1,6 @@
+#ifndef MY_ABC_HERE
+#define MY_ABC_HERE
+#endif
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  *  linux/fs/exec.c
@@ -115,6 +118,9 @@ bool path_noexec(const struct path *path)
 	return (path->mnt->mnt_flags & MNT_NOEXEC) ||
 	       (path->mnt->mnt_sb->s_iflags & SB_I_NOEXEC);
 }
+#ifdef MY_ABC_HERE
+EXPORT_SYMBOL_GPL(path_noexec);
+#endif /* MY_ABC_HERE */
 
 #ifdef CONFIG_USELIB
 /*
